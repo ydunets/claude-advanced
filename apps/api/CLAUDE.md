@@ -12,7 +12,7 @@ Run from the repository root with `pnpm --filter api <script>`, or from this dir
 - `build` and `start:prod`: compile to `dist/` and run the output.
 - `lint`: Oxlint, type-aware (`.oxlintrc.json` extends the root config).
 - `typecheck`: `tsc --noEmit`.
-- `test`: unit tests (`src/**/*.spec.ts`). `test:e2e` runs the end-to-end suite in `test/` against the real database.
+- `test`: unit tests (`src/**/*.spec.ts`); `test:watch` reruns them on change. `test:e2e` runs the end-to-end suite in `test/` against the real database: it boots `AppModule` in the test process with Supertest, so no API server needs to run, but Postgres must be up and migrated. Each test registers a user with a random email, so no cleanup is needed.
 - `db:generate`: create a SQL migration in `drizzle/` from `src/database/schema.ts`. `db:migrate`: apply pending migrations.
 
 ## Database
