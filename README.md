@@ -40,9 +40,9 @@ Run from the repository root after `pnpm install`.
 Oxlint is configured in the root `.oxlintrc.json`; each app extends it.
 
 A Husky `pre-commit` hook (`.husky/pre-commit`) runs `pnpm lint`,
-`pnpm test` and both end-to-end suites before every commit, so a commit needs
-the stack described in [Tests](#tests): migrated Postgres, `pnpm dev` and
-Chromium. A `pre-push` hook (`.husky/pre-push`) runs `pnpm lint`.
+`pnpm typecheck`, `pnpm test` and both end-to-end suites before every commit,
+so a commit needs the stack described in [Tests](#tests): migrated Postgres,
+`pnpm dev` and Chromium. A `pre-push` hook (`.husky/pre-push`) runs `pnpm lint`.
 `pnpm install` installs both hooks through the `prepare` script.
 
 ## Configuration
