@@ -19,5 +19,6 @@ Run from the repository root with `pnpm --filter web <script>`, or from this dir
 - Next.js documentation for the pinned version is in `node_modules/next/dist/docs/`. Read it before using an API that may have changed.
 - Cache Components is enabled in `next.config.ts`; follow its caching model instead of legacy `fetch` caching options.
 - Keep the API base URL in an environment variable (for example `NEXT_PUBLIC_API_URL`) and document it in `.env.example`. The API listens on port 4000 by default.
+- After every UI change, verify the result visually: run the dev server, open the affected pages in a browser, and review them with the `ui-ux-pro-max` skill (layout, responsiveness, accessibility, interaction states). Do not report a UI change as complete until this check passes.
 - Do not add ESLint or its configuration files; linting is handled by Oxlint at the root.
 - When a change alters this app's architecture (routing structure, data fetching, API integration, scripts or environment variables), update this file and the root `README.md` and `CLAUDE.md` as described in the root "Documentation maintenance" section.
