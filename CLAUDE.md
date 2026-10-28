@@ -1,11 +1,11 @@
 # video-meetings
 
-A pnpm workspace containing two applications. The API implements email and password registration and login that issue JWTs, and a JWT protected meetings module (create, list, get by id). It follows CQRS through `@nestjs/cqrs`, as described in `apps/api/CLAUDE.md`.
+A pnpm workspace containing two applications. The API implements email and password registration and login that issue JWTs, and a JWT protected meetings module (create, list, get by id). It follows CQRS through `@nestjs/cqrs`, as described in `apps/api/CLAUDE.md`. The web app has `/register`, `/login` and a protected home page `/`; it calls the API from Server Actions and Server Components (server to server, so the API needs no CORS) using `API_URL` from `apps/web/.env`.
 
-| Path       | Stack                                 | Default port |
-| ---------- | ------------------------------------- | ------------ |
-| `apps/web` | Next.js 16 (App Router), Tailwind CSS | 3000         |
-| `apps/api` | NestJS 12, Drizzle ORM, Vitest        | 4000         |
+| Path       | Stack                                              | Default port |
+| ---------- | -------------------------------------------------- | ------------ |
+| `apps/web` | Next.js 16 (App Router), Tailwind CSS 4, HeroUI v3 | 3000         |
+| `apps/api` | NestJS 12, Drizzle ORM, Vitest                     | 4000         |
 
 ## Commands
 
@@ -21,6 +21,7 @@ Run every command from the repository root.
 - `pnpm db:up` and `pnpm db:down`: start (and wait for health) or stop the Postgres 17 container defined in `compose.yaml` (port 5432, volume `postgres-data`). Docker with Compose v2 is required. Container settings come from the root `.env` (template: `.env.example`); `compose.yaml` has no defaults and refuses to start without them.
 - `pnpm --filter api db:migrate`: apply the Drizzle migrations in `apps/api/drizzle/`. `db:generate` creates a new migration after a schema change.
 - `pnpm --filter api test:e2e`: run the API end-to-end suite. It needs a running, migrated database and `apps/api/.env`.
+- `pnpm --filter web test:e2e`: run the web app's Playwright suite. It needs the running web app and API (`pnpm dev`), a migrated database and `apps/web/.env`.
 
 ## Conventions
 

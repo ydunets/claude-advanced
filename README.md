@@ -13,6 +13,12 @@ The API exposes `POST /auth/register` and `POST /auth/login`; both take
 `GET /meetings/:id` manage the current user's meetings. The API follows CQRS
 (`@nestjs/cqrs`); see `apps/api/CLAUDE.md`.
 
+The web app has `/register` and `/login` pages, which call the API from
+Next.js Server Actions (the API has no CORS), keep the token in an httpOnly
+`accessToken` cookie and redirect to `/`. The home page `/` is only for
+signed-in users: it shows their email, the number of meetings, the three
+latest meetings and a Sign out button.
+
 ## Commands
 
 Run from the repository root after `pnpm install`.
@@ -31,19 +37,23 @@ Run from the repository root after `pnpm install`.
 | `pnpm db:up`     | Start Postgres in Docker and wait for health |
 | `pnpm db:down`   | Stop Postgres (data stays in the volume)     |
 
+`pnpm --filter web test:e2e` runs the web app's Playwright suite against the
+running app and API (`pnpm db:up`, migrated database, `pnpm dev`).
+
 Oxlint is configured in the root `.oxlintrc.json`; each app extends it.
 
 ## Configuration
 
-All configuration lives in two git-ignored env files; neither the code nor
+All configuration lives in git-ignored env files; neither the code nor
 `compose.yaml` carries default values, and a missing variable stops startup.
 
 | File            | Read by                                                 | Variables                                                            |
 | --------------- | ------------------------------------------------------- | -------------------------------------------------------------------- |
 | `.env`          | Docker Compose                                          | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT` |
 | `apps/api/.env` | The API (`@nestjs/config`) and `drizzle-kit` (`dotenv`) | `PORT`, `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN_SECONDS`       |
+| `apps/web/.env` | Next.js Server Actions and the Playwright suite         | `API_URL`, `E2E_BASE_URL`                                            |
 
-Create both from their `.env.example` and keep `DATABASE_URL` consistent with
+Create each from its `.env.example` and keep `DATABASE_URL` consistent with
 the Postgres values.
 
 ## Database

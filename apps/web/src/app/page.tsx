@@ -1,69 +1,113 @@
-import Image from 'next/image';
+import { Button, Card } from '@heroui/react';
+import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
+import { findMeetings, type Meeting } from '@/lib/meetings';
+import { ROUTES } from '@/lib/routes';
+import { findAccessToken, getTokenEmail } from '@/lib/session';
+import { signOut } from './(auth)/actions';
+import { BrandMark } from './brand-mark';
 
-export default function Home() {
+const LATEST_MEETINGS_COUNT = 3;
+
+const MEETING_DATE_FORMAT = new Intl.DateTimeFormat('en', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
+export const metadata: Metadata = {
+  title: 'Your meetings · Video Meetings',
+};
+
+function formatCount(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+// The API lists meetings in ascending date order, so the latest come last.
+function getLatestMeetings(meetings: Meeting[]): Meeting[] {
+  return meetings.slice(-LATEST_MEETINGS_COUNT).reverse();
+}
+
+export default function HomePage(): React.JSX.Element {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{' '}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{' '}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{' '}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{' '}
-            or the{' '}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{' '}
-            center.
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-6 sm:px-8 sm:py-10">
+      <Suspense fallback={<p className="text-muted">Loading your meetings…</p>}>
+        <HomeContent />
+      </Suspense>
+    </div>
+  );
+}
+
+async function HomeContent(): Promise<React.JSX.Element> {
+  const accessToken = await findAccessToken();
+  if (!accessToken) {
+    redirect(ROUTES.LOGIN);
+  }
+  const meetings = await findMeetings(accessToken);
+  if (!meetings) {
+    redirect(ROUTES.LOGIN);
+  }
+  const latestMeetings = getLatestMeetings(meetings);
+
+  return (
+    <>
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <BrandMark />
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted">
+            Signed in as{' '}
+            <span className="font-medium break-all text-foreground">
+              {getTokenEmail(accessToken)}
+            </span>
+          </p>
+          <form action={signOut}>
+            <Button type="submit" variant="secondary" size="sm">
+              Sign out
+            </Button>
+          </form>
+        </div>
+      </header>
+
+      <main className="mt-12 flex flex-col gap-8">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold">Your meetings</h1>
+          <p className="text-muted">
+            {meetings.length === 0
+              ? 'No meetings yet.'
+              : formatCount(meetings.length, 'meeting')}
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        {latestMeetings.length > 0 && (
+          <section
+            aria-labelledby="latest-meetings"
+            className="flex flex-col gap-3"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+            <h2 id="latest-meetings" className="text-base font-semibold">
+              Latest meetings
+            </h2>
+            <Card className="p-0 shadow-none">
+              <ul className="divide-y divide-border">
+                {latestMeetings.map((meeting) => (
+                  <li
+                    key={meeting.id}
+                    className="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <span className="font-medium">{meeting.title}</span>
+                    <span className="text-sm text-muted">
+                      <time dateTime={meeting.date}>
+                        {MEETING_DATE_FORMAT.format(new Date(meeting.date))}
+                      </time>
+                      {' · '}
+                      {formatCount(meeting.participants.length, 'participant')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </section>
+        )}
       </main>
-    </div>
+    </>
   );
 }
