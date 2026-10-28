@@ -8,7 +8,7 @@ NestJS 12 backend written as native ES modules (`"type": "module"`, `module: nod
 
 Run from the repository root with `pnpm --filter api <script>`, or from this directory.
 
-- `start:dev`: start in watch mode on `PORT` from `.env` (4000 in `.env.example`).
+- `dev`: start in watch mode on `PORT` from `.env` (4000 in `.env.example`).
 - `build` and `start:prod`: compile to `dist/` and run the output.
 - `lint`: Oxlint, type-aware (`.oxlintrc.json` extends the root config).
 - `typecheck`: `tsc --noEmit`.
