@@ -33,14 +33,26 @@ Run from the repository root after `pnpm install`.
 
 Oxlint is configured in the root `.oxlintrc.json`; each app extends it.
 
+## Configuration
+
+All configuration lives in two git-ignored env files; neither the code nor
+`compose.yaml` carries default values, and a missing variable stops startup.
+
+| File            | Read by                                                 | Variables                                                            |
+| --------------- | ------------------------------------------------------- | -------------------------------------------------------------------- |
+| `.env`          | Docker Compose                                          | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT` |
+| `apps/api/.env` | The API (`@nestjs/config`) and `drizzle-kit` (`dotenv`) | `PORT`, `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN_SECONDS`       |
+
+Create both from their `.env.example` and keep `DATABASE_URL` consistent with
+the Postgres values.
+
 ## Database
 
-`compose.yaml` runs Postgres 17 on port 5432 with a named volume
-(`postgres-data`). It requires Docker with Compose v2. Override the defaults by
-copying `.env.example` to `.env`.
+`compose.yaml` runs Postgres 17 with a named volume (`postgres-data`). It
+requires Docker with Compose v2. The API accesses Postgres through Drizzle ORM.
+To prepare a fresh database:
 
-The API accesses Postgres through Drizzle ORM. To prepare a fresh database:
-
-1. Copy `apps/api/.env.example` to `apps/api/.env` and set `JWT_SECRET`.
+1. Copy `.env.example` to `.env` and `apps/api/.env.example` to
+   `apps/api/.env`, then set `JWT_SECRET`.
 2. Run `pnpm db:up`, then `pnpm --filter api db:migrate`.
-3. Run `pnpm --filter api test:e2e` to exercise the auth endpoints.
+3. Run `pnpm --filter api test:e2e` to exercise the API end to end.

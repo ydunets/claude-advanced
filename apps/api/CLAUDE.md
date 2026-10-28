@@ -8,7 +8,7 @@ NestJS 12 backend written as native ES modules (`"type": "module"`, `module: nod
 
 Run from the repository root with `pnpm --filter api <script>`, or from this directory.
 
-- `start:dev`: start in watch mode on port 4000 (override with `PORT`).
+- `start:dev`: start in watch mode on `PORT` from `.env` (4000 in `.env.example`).
 - `build` and `start:prod`: compile to `dist/` and run the output.
 - `lint`: Oxlint, type-aware (`.oxlintrc.json` extends the root config).
 - `typecheck`: `tsc --noEmit`.
@@ -55,7 +55,7 @@ Validation runs through a global `ValidationPipe` registered as `APP_PIPE` in `A
 
 ## Environment variables
 
-`.env.example` lists `DATABASE_URL`, `JWT_SECRET` and `JWT_EXPIRES_IN_SECONDS`. `ConfigModule` loads `.env` from this directory, and the app fails at startup when one is missing.
+`.env.example` lists `PORT`, `DATABASE_URL`, `JWT_SECRET` and `JWT_EXPIRES_IN_SECONDS`; copy it to `.env`. Inside Nest, `ConfigModule` loads `.env` from this directory (it uses `dotenv` internally) and every value is read with `ConfigService.getOrThrow`, so the app fails at startup when one is missing. Outside Nest, `drizzle.config.ts` loads the same file with `dotenv`. Code holds no fallback values.
 
 ## Conventions
 

@@ -1,11 +1,8 @@
-import { existsSync } from 'node:fs';
+import { config } from 'dotenv';
 import { defineConfig } from 'drizzle-kit';
 
-const ENV_FILE = '.env';
-
-if (existsSync(ENV_FILE)) {
-  process.loadEnvFile(ENV_FILE);
-}
+// drizzle-kit runs outside Nest, so ConfigModule has not loaded .env here.
+config({ quiet: true });
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {

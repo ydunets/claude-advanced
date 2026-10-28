@@ -18,7 +18,7 @@ Run every command from the repository root.
 - `pnpm typecheck`: run the TypeScript compiler in each app.
 - `pnpm test`: run the unit tests.
 - `pnpm format` and `pnpm format:check`: Oxfmt.
-- `pnpm db:up` and `pnpm db:down`: start (and wait for health) or stop the Postgres 17 container defined in `compose.yaml` (port 5432, volume `postgres-data`). Docker with Compose v2 is required. Container settings come from the root `.env.example`.
+- `pnpm db:up` and `pnpm db:down`: start (and wait for health) or stop the Postgres 17 container defined in `compose.yaml` (port 5432, volume `postgres-data`). Docker with Compose v2 is required. Container settings come from the root `.env` (template: `.env.example`); `compose.yaml` has no defaults and refuses to start without them.
 - `pnpm --filter api db:migrate`: apply the Drizzle migrations in `apps/api/drizzle/`. `db:generate` creates a new migration after a schema change.
 - `pnpm --filter api test:e2e`: run the API end-to-end suite. It needs a running, migrated database and `apps/api/.env`.
 
@@ -29,7 +29,7 @@ Run every command from the repository root.
 - Oxfmt settings live in the root `.oxfmtrc.json` (single quotes, trailing commas, 80 columns). Prettier is not used.
 - A Claude Code `PostToolUse` hook in `.claude/settings.json` runs Oxfmt on every file Claude edits or writes.
 - Add a dependency to the app that needs it with `pnpm --filter <web|api> add <package>`.
-- Build outputs (`dist`, `.next`) and `.env*` files are ignored by git. Provide `.env.example` for any new variable.
+- Build outputs (`dist`, `.next`) and `.env*` files are ignored by git. Every configurable value lives in an env file, never as a default in code or `compose.yaml`; add each new variable to the matching `.env.example`.
 - The two apps do not share code yet. Introduce a `packages/` workspace only when real shared code exists.
 
 ## Documentation maintenance
