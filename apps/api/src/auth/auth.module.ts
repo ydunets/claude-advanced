@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { UsersModule } from '../users/users.module.js';
 import { AuthController } from './auth.controller.js';
 import { AuthTokenService } from './auth-token.service.js';
 import { RegisterHandler } from './commands/register.handler.js';
@@ -20,7 +19,6 @@ function getTokenLifetimeSeconds(config: ConfigService): number {
 
 @Module({
   imports: [
-    UsersModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

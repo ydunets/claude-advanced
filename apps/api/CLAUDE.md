@@ -20,7 +20,7 @@ Run from the repository root with `pnpm --filter api <script>`, or from this dir
 Postgres runs through the root `compose.yaml` (`pnpm db:up`). Drizzle ORM (`drizzle-orm/node-postgres`) is the data access layer; `drizzle.config.ts` configures `drizzle-kit`.
 
 - `src/database/schema.ts` is the single schema source. Change it, then run `db:generate` and commit the generated migration. Never edit applied migrations.
-- `DatabaseModule` provides the Drizzle client under the `DATABASE` token and closes the pool on shutdown. Only command and query handlers, and services that own a table (`UsersService`), inject it; controllers never do.
+- `DatabaseModule` provides the Drizzle client under the `DATABASE` token and closes the pool on shutdown. Only command and query handlers inject it; controllers and services never do.
 
 ## CQRS
 
@@ -28,10 +28,11 @@ Feature modules follow CQRS through `@nestjs/cqrs`. `CqrsModule.forRoot()` is re
 
 - A **command** changes state (`commands/<name>.command.ts`), and a **query** only reads (`queries/<name>.query.ts`). Classify by effect, not by HTTP verb: `POST /auth/login` is a query because it writes nothing.
 - Each command or query extends `Command<TResult>` or `Query<TResult>`, so `commandBus.execute()` and `queryBus.execute()` return a typed promise without casts.
-- Each has exactly one handler in the same folder (`<name>.handler.ts`, decorated with `@CommandHandler` or `@QueryHandler`). A handler owns one use case end to end: it runs the Drizzle query (or calls a table owning service from another module), maps rows to the response shape, and throws Nest HTTP exceptions (`NotFoundException`, `ConflictException`, `UnauthorizedException`) for expected failures.
+- Each has exactly one handler in the same folder (`<name>.handler.ts`, decorated with `@CommandHandler` or `@QueryHandler`). A handler owns one use case end to end: it runs the Drizzle query for a table its own module owns, maps rows to the response shape, and throws Nest HTTP exceptions (`NotFoundException`, `ConflictException`, `UnauthorizedException`) for expected failures.
 - Commands may return a result when the HTTP response needs it (the created meeting, the issued token). This is a deliberate relaxation of strict CQRS.
 - Controllers stay thin: validate the body with a DTO, read the user with `@CurrentUser()`, build the command or query, and dispatch it. No business logic and no database access.
-- Logic shared by several handlers lives in a plain injectable service (`AuthTokenService`), not in another handler.
+- Logic shared by several handlers lives in a plain injectable service (`AuthTokenService`) or a plain function module (`users/email.ts`), not in another handler.
+- Modules talk to each other only through the buses: a handler dispatches another module's command or query (`RegisterHandler` sends `CreateUserCommand`, `LoginHandler` sends `FindUserByEmailQuery`) and never injects that module's handlers or services. A module that only serves the buses exports nothing and is imported once, in `AppModule`. Errors crossing the bus are plain domain errors (`EmailAlreadyRegisteredError`); the calling handler maps them to HTTP exceptions.
 
 New feature module layout:
 
@@ -47,8 +48,8 @@ src/<feature>/
 ## Modules
 
 - `database/`: Drizzle client and schema (`users`, `meetings`).
-- `users/`: `UsersService` owns the `users` table (lookup by email, creation). Emails are stored lowercased; a unique index on `lower(email)` enforces uniqueness. It knows nothing about HTTP, hashing or tokens.
-- `auth/`: `POST /auth/register` (201, `RegisterCommand`) and `POST /auth/login` (200, `LoginQuery`), both returning `{ accessToken }`. Passwords are hashed with Node `scrypt` (`password.ts`). Unknown email and wrong password both return 401. `AuthTokenService` signs and verifies JWTs and is exported. `JwtAuthGuard` requires a valid `Authorization: Bearer` token (401 otherwise) and sets `request.user`; `@CurrentUser()` reads it.
+- `users/`: owns the `users` table. `CreateUserCommand` inserts a user from an email and an already hashed password and rejects a taken email with `EmailAlreadyRegisteredError`; `FindUserByEmailQuery` resolves the user or `undefined`. Emails are stored lowercased (`email.ts`); a unique index on `lower(email)` enforces uniqueness. It has no controller and knows nothing about HTTP, hashing or tokens.
+- `auth/`: `POST /auth/register` (201, `RegisterCommand`) and `POST /auth/login` (200, `LoginQuery`), both returning `{ accessToken }`. Auth holds only the credential logic: it hashes and checks passwords with Node `scrypt` (`password.ts`) and issues tokens, and it reaches users through the buses. Unknown email and wrong password both return 401. `AuthTokenService` signs and verifies JWTs and is exported. `JwtAuthGuard` requires a valid `Authorization: Bearer` token (401 otherwise) and sets `request.user`; `@CurrentUser()` reads it.
 - `meetings/`: every route is behind `JwtAuthGuard` and scoped to the current user. `POST /meetings` (`CreateMeetingCommand`) takes `{ title, date (ISO 8601), participants (emails) }`; `GET /meetings` (`ListMeetingsQuery`) lists the user's meetings ordered by date; `GET /meetings/:id` (`GetMeetingQuery`) returns 400 for a non UUID id and 404 when the meeting is missing or owned by someone else. Responses are `{ id, title, date, participants }` (`meeting-response.ts`).
 
 Validation runs through a global `ValidationPipe` registered as `APP_PIPE` in `AppModule`, so end-to-end tests see the same behaviour as the server.

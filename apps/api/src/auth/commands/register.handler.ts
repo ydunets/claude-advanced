@@ -1,9 +1,9 @@
 import { ConflictException } from '@nestjs/common';
-import { CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
+import { CommandBus, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import {
+  CreateUserCommand,
   EmailAlreadyRegisteredError,
-  UsersService,
-} from '../../users/users.service.js';
+} from '../../users/commands/create-user.command.js';
 import { AuthTokenService, type AuthToken } from '../auth-token.service.js';
 import { hashPassword } from '../password.js';
 import { RegisterCommand } from './register.command.js';
@@ -11,20 +11,20 @@ import { RegisterCommand } from './register.command.js';
 @CommandHandler(RegisterCommand)
 export class RegisterHandler implements ICommandHandler<RegisterCommand> {
   constructor(
-    private readonly usersService: UsersService,
+    private readonly commandBus: CommandBus,
     private readonly authTokenService: AuthTokenService,
   ) {}
 
   async execute({ email, password }: RegisterCommand): Promise<AuthToken> {
     const passwordHash = await hashPassword(password);
-    try {
-      const user = await this.usersService.createUser(email, passwordHash);
-      return await this.authTokenService.createAuthToken(user);
-    } catch (error) {
-      if (error instanceof EmailAlreadyRegisteredError) {
-        throw new ConflictException(error.message);
-      }
-      throw error;
-    }
+    const user = await this.commandBus
+      .execute(new CreateUserCommand(email, passwordHash))
+      .catch((error: unknown) => {
+        if (error instanceof EmailAlreadyRegisteredError) {
+          throw new ConflictException(error.message);
+        }
+        throw error;
+      });
+    return this.authTokenService.createAuthToken(user);
   }
 }
