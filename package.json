@@ -16,7 +16,9 @@
     "typecheck": "pnpm --recursive run typecheck",
     "test": "pnpm --recursive --if-present run test",
     "format": "oxfmt",
-    "format:check": "oxfmt --check"
+    "format:check": "oxfmt --check",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:down": "docker compose down"
   },
   "devDependencies": {
     "oxfmt": "^0.75.0",

@@ -11,6 +11,7 @@
     "coverage",
     "pnpm-lock.yaml",
     "next-env.d.ts",
+    "apps/api/drizzle/meta",
     "presentation",
     ".agents",
     ".claude/skills"

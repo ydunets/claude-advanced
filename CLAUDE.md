@@ -1,11 +1,11 @@
 # video-meetings
 
-A pnpm workspace containing two applications. At this stage only the project structure exists; no product features have been implemented.
+A pnpm workspace containing two applications. The API implements email and password registration and login that issue JWTs, and a JWT protected meetings module (create, list, get by id). It follows CQRS through `@nestjs/cqrs`, as described in `apps/api/CLAUDE.md`.
 
 | Path       | Stack                                 | Default port |
 | ---------- | ------------------------------------- | ------------ |
 | `apps/web` | Next.js 16 (App Router), Tailwind CSS | 3000         |
-| `apps/api` | NestJS 12, Vitest                     | 4000         |
+| `apps/api` | NestJS 12, Drizzle ORM, Vitest        | 4000         |
 
 ## Commands
 
@@ -18,6 +18,9 @@ Run every command from the repository root.
 - `pnpm typecheck`: run the TypeScript compiler in each app.
 - `pnpm test`: run the unit tests.
 - `pnpm format` and `pnpm format:check`: Oxfmt.
+- `pnpm db:up` and `pnpm db:down`: start (and wait for health) or stop the Postgres 17 container defined in `compose.yaml` (port 5432, volume `postgres-data`). Docker with Compose v2 is required. Container settings come from the root `.env.example`.
+- `pnpm --filter api db:migrate`: apply the Drizzle migrations in `apps/api/drizzle/`. `db:generate` creates a new migration after a schema change.
+- `pnpm --filter api test:e2e`: run the API end-to-end suite. It needs a running, migrated database and `apps/api/.env`.
 
 ## Conventions
 
