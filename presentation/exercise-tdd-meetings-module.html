@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Упражнение — TDD модуль встреч · Claude Code Advanced</title>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<style>
+:root {
+    --bg: #16171D; --surface: #1E1F29; --surface-light: #2E2D3D; --surface-muted: #4D5064;
+    --primary: #6C38CC; --primary-hover: #452481; --accent: #E47AD5; --accent-light: #A97BFF;
+    --text: #FAFAFA; --text-secondary: #AFB2BF; --code-bg: #101114;
+    --success: #22C55E; --gold: #F5A623;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Fira Sans', sans-serif; }
+#deck { position: relative; width: 100%; height: 100%; }
+.slide {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transform: translateX(40px); pointer-events: none; padding: 3vh 5vw;
+}
+.slide.active { opacity: 1; transform: translateX(0); pointer-events: auto; }
+.slide-content { max-width: 88vw; width: 100%; }
+h1 { font-weight: 800; font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.15; }
+h2 {
+    font-size: clamp(1.5rem, 3.2vw, 2.2rem); font-weight: 700; margin-bottom: 1.2rem;
+    background: linear-gradient(135deg, #FAFAFA, #A97BFF);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text); }
+p { color: var(--text-secondary); line-height: 1.7; font-size: 1rem; }
+ul { list-style: none; }
+ul li { padding: 8px 0 8px 28px; position: relative; color: var(--text-secondary); font-size: 1rem; line-height: 1.6; }
+ul li::before { content: ''; position: absolute; left: 0; top: 16px; width: 9px; height: 9px; border-radius: 50%; background: var(--primary); }
+ul li:has(.icon)::before { display: none; }
+ul li:has(.icon) { padding-left: 6px; }
+.icon { font-size: 1em; vertical-align: middle; margin-right: 9px; width: 1.3em; text-align: center; display: inline-block; color: var(--accent-light); }
+.accent { color: var(--accent); }
+.accent-light { color: var(--accent-light); }
+.success-color { color: var(--success); }
+.gold-color { color: var(--gold); }
+.red-color { color: #f87171; }
+.tag { display: inline-block; background: rgba(108,56,204,0.25); border: 1px solid rgba(108,56,204,0.4); color: var(--accent-light); padding: 3px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 500; }
+.tag.success { background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.3); color: var(--success); }
+.tag.gold { background: rgba(245,166,35,0.15); border-color: rgba(245,166,35,0.3); color: var(--gold); }
+.highlight-box { background: var(--surface); border: 1px solid var(--surface-light); border-radius: 16px; padding: 20px 24px; margin-top: 20px; }
+.highlight-box p { color: var(--text); font-size: 0.95rem; }
+.columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 1rem; }
+.column { background: var(--surface); border: 1px solid var(--surface-light); border-radius: 14px; padding: 20px 24px; }
+code.inline { background: var(--surface-light); padding: 2px 7px; border-radius: 5px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: var(--accent-light); }
+.code-wrapper { background: var(--code-bg); border-radius: 12px; overflow: hidden; margin-top: 0.8rem; }
+.code-header { background: #1a1b1e; padding: 9px 14px; display: flex; align-items: center; gap: 6px; }
+.dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.filename { margin-left: 8px; font-size: 0.78rem; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; }
+.code-wrapper pre { margin: 0; padding: 16px 20px; overflow-x: auto; font-size: 0.82rem; line-height: 1.6; }
+.code-note { color: var(--text-secondary); font-size: 0.88rem; margin-top: 10px; }
+.title-slide { background: linear-gradient(135deg, #6C38CC 0%, #E47AD5 100%); text-align: center; }
+.subtitle { font-size: clamp(0.95rem, 2vw, 1.2rem); font-weight: 300; color: rgba(250,250,250,0.8); margin: 0.8rem 0 0.4rem; }
+.author { font-size: 0.95rem; color: rgba(250,250,250,0.6); margin-top: 1.2rem; }
+.section-number { font-size: clamp(2.5rem, 7vw, 5rem); font-weight: 800; line-height: 1; background: linear-gradient(135deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 0.5rem; }
+.section-subtitle { color: var(--text-secondary); font-size: 1rem; margin-top: 0.5rem; }
+/* endpoint cards */
+.endpoint-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 1rem; }
+.endpoint-card { background: var(--surface); border: 1px solid var(--surface-light); border-radius: 12px; padding: 16px 20px; display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 14px; }
+.method { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 600; padding: 3px 10px; border-radius: 6px; white-space: nowrap; }
+.method.post { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.3); }
+.method.get { background: rgba(169,123,255,0.15); color: var(--accent-light); border: 1px solid rgba(169,123,255,0.3); }
+.endpoint-path { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text); font-weight: 500; margin-bottom: 4px; }
+.endpoint-desc { font-size: 0.85rem; color: var(--text-secondary); }
+.endpoint-badge { font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; }
+/* steps */
+.steps { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 1rem; }
+.step-card { background: var(--surface); border: 1px solid var(--surface-light); border-radius: 12px; padding: 16px 20px; }
+.step-num-badge { display: inline-block; width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: white; margin-bottom: 10px; }
+/* criteria */
+.criteria-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 1rem; }
+.criteria-card { background: var(--surface); border: 1px solid var(--surface-light); border-radius: 12px; padding: 16px 20px; }
+.criteria-card.required { border-color: rgba(108,56,204,0.4); }
+.criteria-card.bonus { border-color: rgba(245,166,35,0.3); }
+.criteria-card h3 { font-size: 0.9rem; margin-bottom: 8px; }
+.criteria-card.required h3 { color: var(--accent-light); }
+.criteria-card.bonus h3 { color: var(--gold); }
+/* nav */
+.nav-btn { position: fixed; top: calc(50vh - 24px); height: 48px; width: 48px; background: rgba(30,31,41,0.7); border: 1px solid var(--surface-light); color: var(--text); border-radius: 12px; cursor: pointer; opacity: 0; transition: opacity 0.3s, background 0.2s; z-index: 100; backdrop-filter: blur(8px); font-size: 1rem; }
+#prev { left: 16px; } #next { right: 16px; }
+body:hover .nav-btn { opacity: 0.6; }
+.nav-btn:hover { opacity: 1 !important; background: var(--primary); }
+.progress-bar { position: fixed; bottom: 0; left: 0; width: 100%; height: 6px; background: var(--surface); z-index: 100; cursor: pointer; transition: height 0.2s; }
+.progress-bar:hover { height: 12px; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.4s ease; }
+.slide-counter { position: fixed; bottom: 14px; right: 24px; font-size: 0.85rem; color: var(--surface-muted); z-index: 100; cursor: pointer; user-select: none; }
+.slide-counter:hover { color: var(--text); }
+.fullscreen-btn { position: fixed; bottom: 10px; left: 24px; background: none; border: 1px solid var(--surface-light); color: var(--surface-muted); width: 36px; height: 36px; border-radius: 8px; cursor: pointer; opacity: 0; z-index: 100; font-size: 0.8rem; transition: opacity 0.3s; }
+body:hover .fullscreen-btn { opacity: 0.5; }
+.fullscreen-btn:hover { opacity: 1 !important; color: var(--text); }
+.slide-jump { position: fixed; bottom: 40px; right: 24px; background: var(--surface); border: 1px solid var(--surface-light); border-radius: 10px; padding: 10px 14px; display: none; gap: 8px; align-items: center; z-index: 200; font-size: 0.9rem; }
+.slide-jump.open { display: flex; }
+.slide-jump input { width: 52px; background: var(--surface-light); border: none; border-radius: 6px; padding: 4px 8px; color: var(--text); font-size: 0.9rem; text-align: center; }
+.slide-jump button { background: var(--primary); border: none; border-radius: 6px; color: white; padding: 4px 10px; cursor: pointer; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div id="deck">
+
+<!-- 1. Title -->
+<div class="slide title-slide active">
+  <div class="slide-content" style="text-align:center">
+    <div style="margin-bottom:1rem">
+      <span class="tag" style="background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3);color:white">Упражнение · Feedback Loops</span>
+    </div>
+    <h1>TDD — модуль встреч</h1>
+    <p class="subtitle">Пишем тесты первыми, реализацию — вторыми</p>
+    <p class="author">Meeting Brain · Claude Code Advanced</p>
+  </div>
+</div>
+
+<!-- 2. Задание -->
+<div class="slide">
+  <div class="slide-content">
+    <h2>Задание</h2>
+    <p style="margin-bottom:1.2rem">Реализуй базовый модуль <code class="inline">meetings</code> в NestJS используя TDD. Claude должен сам итерировать до зелёных тестов.</p>
+    <div class="endpoint-grid">
+      <div class="endpoint-card">
+        <span class="method post">POST</span>
+        <div>
+          <div class="endpoint-path">/meetings</div>
+          <div class="endpoint-desc">Создать новую встречу. Принимает title, date, participants[]</div>
+        </div>
+        <span class="endpoint-badge">тест #1</span>
+      </div>
+      <div class="endpoint-card">
+        <span class="method get">GET</span>
+        <div>
+          <div class="endpoint-path">/meetings</div>
+          <div class="endpoint-desc">Получить список всех встреч текущего пользователя</div>
+        </div>
+        <span class="endpoint-badge">тест #2</span>
+      </div>
+      <div class="endpoint-card">
+        <span class="method get">GET</span>
+        <div>
+          <div class="endpoint-path">/meetings/:id</div>
+          <div class="endpoint-desc">Получить одну встречу по ID. Вернуть 404 если не найдена</div>
+        </div>
+        <span class="endpoint-badge">тест #3</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. Порядок работы -->
+<div class="slide">
+  <div class="slide-content">
+    <h2>Порядок работы с Claude</h2>
+    <div class="steps">
+      <div class="step-card">
+        <div class="step-num-badge">1</div>
+        <h3>Попроси написать тесты</h3>
+        <p style="font-size:0.88rem">Сначала только тесты — без реализации. Три теста для трёх эндпоинтов.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num-badge">2</div>
+        <h3>Запусти — убедись что красные</h3>
+        <p style="font-size:0.88rem"><code class="inline">npm run test</code> — все три теста должны упасть. Это ожидаемо.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num-badge">3</div>
+        <h3>Попроси написать реализацию</h3>
+        <p style="font-size:0.88rem">Попроси Claude реализовать модуль под тесты. Он сам запустит тесты и будет итерировать.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num-badge">4</div>
+        <h3>Дождись зелёного</h3>
+        <p style="font-size:0.88rem">Не вмешивайся — наблюдай как агент сам получает сигнал и правит код.</p>
+      </div>
+    </div>
+    <div class="highlight-box" style="margin-top:14px">
+      <p><i class="fa-solid fa-lightbulb" style="color:var(--gold);margin-right:8px"></i>Главное в упражнении — не написать код, а <strong>увидеть как Claude итерирует через тесты</strong></p>
+    </div>
+  </div>
+</div>
+
+
+</div>
+
+<button class="nav-btn" id="prev" onclick="go(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+<button class="nav-btn" id="next" onclick="go(1)"><i class="fa-solid fa-chevron-right"></i></button>
+<div class="progress-bar" onclick="onProgressClick(event)"><div class="progress-fill" id="progressFill"></div></div>
+<div class="slide-counter" id="counter" onclick="toggleJump()">1 / 8</div>
+<button class="fullscreen-btn" onclick="toggleFS()"><i class="fa-solid fa-expand"></i></button>
+<div class="slide-jump" id="slideJump">
+  <span style="color:var(--text-secondary);font-size:0.85rem">Слайд</span>
+  <input type="number" id="jumpInput" min="1" max="3" placeholder="#">
+  <button onclick="jumpToSlide()">Go</button>
+</div>
+
+<script>
+hljs.highlightAll();
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+let current = 0, animating = false;
+function updateUI() {
+  document.getElementById('counter').textContent = (current+1)+' / '+total;
+  document.getElementById('progressFill').style.width = ((current+1)/total*100)+'%';
+}
+function goTo(n) {
+  if (n < 0 || n >= total || n === current || animating) return;
+  animating = true;
+  const prev = current, dir = n > current ? 1 : -1;
+  slides[prev].classList.remove('active');
+  slides[prev].style.cssText = 'transition:opacity .4s ease,transform .4s ease;transform:translateX('+(dir>0?'-':'')+'40px);opacity:0';
+  current = n;
+  slides[current].style.cssText = 'transition:none;transform:translateX('+(dir>0?'':'−')+'40px);opacity:0';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    slides[current].style.cssText = 'transition:opacity .4s ease,transform .4s ease';
+    slides[current].classList.add('active');
+    setTimeout(() => {
+      animating = false;
+      slides[current].style.cssText = '';
+      slides[prev].style.cssText = '';
+    }, 450);
+  }));
+  updateUI();
+}
+function go(d) { goTo(current+d); }
+document.addEventListener('keydown', e => {
+  if (e.key==='ArrowRight'||e.key===' ') { e.preventDefault(); go(1); }
+  else if (e.key==='ArrowLeft') { e.preventDefault(); go(-1); }
+  else if (e.key==='Home') goTo(0);
+  else if (e.key==='End') goTo(total-1);
+  else if (e.key==='f'||e.key==='F') toggleFS();
+  else if (e.key==='g'||e.key==='G') toggleJump();
+  else if (e.key==='Escape') { document.getElementById('slideJump').classList.remove('open'); if(document.fullscreenElement) document.exitFullscreen(); }
+});
+function onProgressClick(e) { goTo(Math.floor(e.clientX/window.innerWidth*total)); }
+function toggleJump() { const j=document.getElementById('slideJump'); j.classList.toggle('open'); if(j.classList.contains('open')){document.getElementById('jumpInput').value='';document.getElementById('jumpInput').focus();} }
+function jumpToSlide() { const v=parseInt(document.getElementById('jumpInput').value)-1; if(!isNaN(v)) goTo(v); document.getElementById('slideJump').classList.remove('open'); }
+document.getElementById('jumpInput').addEventListener('keydown', e => { if(e.key==='Enter') jumpToSlide(); });
+function toggleFS() { if(!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
+updateUI();
+</script>
+</body>
+</html>
