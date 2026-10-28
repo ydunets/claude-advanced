@@ -29,6 +29,7 @@ Run every command from the repository root.
 - Shared tooling (Oxlint, Oxfmt, TypeScript) is installed only at the root. Do not add these packages to an app.
 - Oxlint is configured in the root `.oxlintrc.json`; each app extends it with its own `.oxlintrc.json`. ESLint is not used.
 - Oxfmt settings live in the root `.oxfmtrc.json` (single quotes, trailing commas, 80 columns). Prettier is not used.
+- A Husky `pre-commit` hook (`.husky/pre-commit`, installed by the root `prepare` script) runs `pnpm lint`, `pnpm test`, `pnpm --filter api test:e2e` and `pnpm --filter web test:e2e`; a failing check blocks the commit, so committing needs a migrated database and a running `pnpm dev`. A `pre-push` hook (`.husky/pre-push`) runs `pnpm lint`.
 - A Claude Code `PostToolUse` hook in `.claude/settings.json` runs Oxfmt on every file Claude edits or writes.
 - Add a dependency to the app that needs it with `pnpm --filter <web|api> add <package>`.
 - Build outputs (`dist`, `.next`) and `.env*` files are ignored by git. Every configurable value lives in an env file, never as a default in code or `compose.yaml`; add each new variable to the matching `.env.example`.
