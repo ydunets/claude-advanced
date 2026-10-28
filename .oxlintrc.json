@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "typescript/no-floating-promises": "error"
+  },
+  "env": {
+    "node": true
+  },
+  "ignorePatterns": [
+    "**/dist",
+    "**/.next",
+    "**/coverage",
+    "**/next-env.d.ts",
+    ".agents/**",
+    ".claude/skills/**"
+  ]
+}
