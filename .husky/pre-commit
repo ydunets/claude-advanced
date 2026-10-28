@@ -1,5 +1,12 @@
 pnpm lint
 pnpm typecheck
 pnpm test
+
+if ! docker compose exec -T postgres sh -c 'pg_isready -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; then
+  echo 'Postgres is not available, so the end-to-end tests cannot run.'
+  echo 'Start Docker, run pnpm db:up, then commit again.'
+  exit 1
+fi
+
 pnpm --filter api test:e2e
 pnpm --filter web test:e2e
