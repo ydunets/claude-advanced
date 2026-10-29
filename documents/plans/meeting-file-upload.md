@@ -61,6 +61,7 @@ Rules for every phase:
 ## Phase 1: Upload and list a file on the meeting page (Tracer Bullet)
 
 **Status:** pending
+**Milestone:** [Meeting File Upload, Phase 1: Upload and list a file on the meeting page](https://github.com/ydunets/claude-advanced/milestone/1)
 **Goal:** an owner opens a meeting from the home page, uploads one allowed file, and sees it listed with its name, type, size and upload date, also after a reload or a new sign-in.
 **Touches:** database, backend, frontend, documentation
 **Read first:** `apps/api/src/database/schema.ts`, `apps/api/src/meetings/` (controller, `get-meeting.handler.ts`, `meeting-response.ts`, module), `apps/api/test/meetings.e2e-spec.ts`, `apps/web/src/app/page.tsx`, `apps/web/src/lib/meetings.ts`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/routes.ts`, `apps/web/src/proxy.ts`, `apps/web/e2e/home.spec.ts`, `apps/web/e2e/test-users.ts`, the Next.js docs in `apps/web/node_modules/next/dist/docs/` on Route Handlers, dynamic route `params` and Cache Components (enabled in `next.config.ts`; `/meetings/[id]` is the app's first dynamic route and must pass `pnpm build`)
@@ -72,18 +73,23 @@ Rules for every phase:
 1. The `meeting_files` table (meeting reference with cascade delete, original name, MIME type, size in bytes, storage name, upload timestamp) and its generated migration; the `FILES_STORAGE_DIR` variable in `apps/api/.env.example`, and the storage directory ignored by git.
    Files: modify `apps/api/src/database/schema.ts`, create `apps/api/drizzle/<generated>.sql`, modify `apps/api/.env.example`, `.gitignore`.
    Proved by: `pnpm --filter api db:migrate` applies cleanly; the e2e tests of task 2 write and read rows. Each developer adds `FILES_STORAGE_DIR` to the local `apps/api/.env`, because `getOrThrow` stops the API without it.
+   Issue: [#1](https://github.com/ydunets/claude-advanced/issues/1)
 2. `POST /meetings/:id/files` (multipart field `file`, `UploadMeetingFileCommand`) stores the file on disk and returns 201 with a `MeetingFileResponse`; when the browser sends an empty MIME type, the API stores `application/octet-stream`; `GET /meetings/:id/files` (`ListMeetingFilesQuery`) returns the meeting's files ordered by upload date. Both filter by the current owner.
    Files: create `apps/api/src/meetings/commands/upload-meeting-file.{command,handler}.ts`, `apps/api/src/meetings/queries/list-meeting-files.{query,handler}.ts`, `apps/api/src/meetings/meeting-file-response.ts`; modify `meetings.controller.ts`, `meetings.module.ts`.
    Proved by: `apps/api/test/meeting-files.e2e-spec.ts`, "uploads a file and lists it with name, type, size and upload date" and "lists two files uploaded under the same name".
+   Issue: [#2](https://github.com/ydunets/claude-advanced/issues/2)
 3. The meeting page `/meetings/[id]` shows the title, date, participants and the file list (name, type, size, upload date); it redirects to `/login` without a valid token, and the proxy matcher covers it. The rows of "Latest meetings" on `/` link to it.
    Files: create `apps/web/src/app/meetings/[id]/page.tsx`; modify `apps/web/src/lib/meetings.ts`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/routes.ts`, `apps/web/src/proxy.ts`, `apps/web/src/app/page.tsx`.
    Proved by: `apps/web/e2e/meeting.spec.ts`, "an owner opens a meeting from the home page and sees its details" and "the meeting page sends a signed-out visitor to the login page".
+   Issue: [#3](https://github.com/ydunets/claude-advanced/issues/3)
 4. Upload from the meeting page: a client form sends one file with `XMLHttpRequest` to the Route Handler `POST /meetings/[id]/files`, which streams it to the API with the bearer token; the list refreshes after success.
    Files: create `apps/web/src/app/meetings/[id]/files/route.ts`, `apps/web/src/app/meetings/[id]/upload-file-form.tsx`; modify `apps/web/src/app/meetings/[id]/page.tsx`.
    Proved by: `apps/web/e2e/meeting.spec.ts`, "an uploaded file is listed", "a second upload lists both files", "an uploaded file survives a reload and a new sign-in".
+   Issue: [#4](https://github.com/ydunets/claude-advanced/issues/4)
 5. Documentation: the files routes, the `meeting_files` table, the disk store and `FILES_STORAGE_DIR` in `apps/api/CLAUDE.md`; the meeting page, the Route Handlers and the proxy matcher in `apps/web/CLAUDE.md`; the feature summary and configuration table in the root `CLAUDE.md` and `README.md`.
    Files: modify the four documents.
    Proved by: review against the root "Documentation maintenance" rules.
+   Issue: [#5](https://github.com/ydunets/claude-advanced/issues/5)
 
 **Produces:** table `meeting_files` (Drizzle `meetingFiles`, type `MeetingFile`); `FILES_STORAGE_DIR`; `POST /meetings/:id/files` (multipart field `file`, 201); `GET /meetings/:id/files`; `MeetingFileResponse` `{ id, name, mimeType, size, uploadedAt }`; `UploadMeetingFileCommand`, `ListMeetingFilesQuery`; web route `/meetings/[id]`; Route Handler `POST /meetings/[id]/files`; `UploadFileForm`; web functions `findMeeting`, `findMeetingFiles`; e2e files `apps/api/test/meeting-files.e2e-spec.ts`, `apps/web/e2e/meeting.spec.ts`.
 
@@ -100,6 +106,7 @@ Rules for every phase:
 ## Phase 2: Download endpoint and owner isolation (API)
 
 **Status:** pending
+**Milestone:** [Meeting File Upload, Phase 2: Download endpoint and owner isolation (API)](https://github.com/ydunets/claude-advanced/milestone/2)
 **Goal:** the API returns the original bytes of a file to its owner and answers 404 to everyone else on every files route.
 **Touches:** backend, documentation
 **Depends on:** Phase 1 (`meeting_files`, `POST /meetings/:id/files`, `GET /meetings/:id/files`, `MeetingFileResponse`, `apps/api/test/meeting-files.e2e-spec.ts`)
@@ -112,12 +119,15 @@ Rules for every phase:
 1. `GET /meetings/:id/files/:fileId` (`GetMeetingFileQuery`) streams the stored file with its `Content-Type` and an attachment `Content-Disposition` carrying the original name; 400 for a non UUID id, 404 when the file is missing or the meeting belongs to someone else.
    Files: create `apps/api/src/meetings/queries/get-meeting-file.{query,handler}.ts`; modify `meetings.controller.ts`, `meetings.module.ts`.
    Proved by: `apps/api/test/meeting-files.e2e-spec.ts`, "downloads the exact bytes that were uploaded" and "returns 404 for an unknown file id".
+   Issue: [#6](https://github.com/ydunets/claude-advanced/issues/6)
 2. Owner isolation on every files route: another user's upload, list and download of a meeting answer 404, a rejected upload leaves no file on disk, and a file id from one meeting cannot be read through another meeting.
    Files: modify `upload-meeting-file.handler.ts` if a test fails; extend `apps/api/test/meeting-files.e2e-spec.ts`.
    Proved by: `apps/api/test/meeting-files.e2e-spec.ts`, "returns 404 to another user on upload, list and download" and "does not serve a file through a different meeting id".
+   Issue: [#7](https://github.com/ydunets/claude-advanced/issues/7)
 3. Documentation: the download route and its 404 rule in `apps/api/CLAUDE.md`.
    Files: modify `apps/api/CLAUDE.md`.
    Proved by: review.
+   Issue: [#8](https://github.com/ydunets/claude-advanced/issues/8)
 
 **Produces:** `GET /meetings/:id/files/:fileId` (200 stream with `Content-Type` and `Content-Disposition`, 404 otherwise); `GetMeetingFileQuery`.
 
@@ -130,6 +140,7 @@ Rules for every phase:
 ## Phase 3: Download, empty state and "not found" on the meeting page
 
 **Status:** pending
+**Milestone:** [Meeting File Upload, Phase 3: Download, empty state and "not found" on the meeting page](https://github.com/ydunets/claude-advanced/milestone/3)
 **Goal:** an owner downloads the original file from the list, a meeting without files invites an upload, and a non-owner sees "not found" for the page and the download address.
 **Touches:** frontend, documentation
 **Depends on:** Phase 1 (`/meetings/[id]`, `UploadFileForm`, `findMeeting`, `findMeetingFiles`, `apps/web/e2e/meeting.spec.ts`), Phase 2 (`GET /meetings/:id/files/:fileId`)
@@ -142,15 +153,19 @@ Rules for every phase:
 1. A Route Handler `GET /meetings/[id]/files/[fileId]` streams the API response with its headers; each list row has a download link to it.
    Files: create `apps/web/src/app/meetings/[id]/files/[fileId]/route.ts`; modify `apps/web/src/app/meetings/[id]/page.tsx`, `apps/web/src/lib/routes.ts`.
    Proved by: `apps/web/e2e/meeting.spec.ts`, "a downloaded file is byte-for-byte identical to the uploaded one".
+   Issue: [#9](https://github.com/ydunets/claude-advanced/issues/9)
 2. A non-owner, or an unknown meeting id, gets the Next.js "not found" page on `/meetings/[id]` and a 404 without content from the download Route Handler.
    Files: modify `apps/web/src/app/meetings/[id]/page.tsx`, `apps/web/src/lib/meetings.ts`, `apps/web/src/lib/api.ts`, the download Route Handler.
    Proved by: `apps/web/e2e/meeting.spec.ts`, "another user gets not found for the meeting page and its download address".
+   Issue: [#10](https://github.com/ydunets/claude-advanced/issues/10)
 3. A meeting without files shows an empty state that contains the upload action.
    Files: modify `apps/web/src/app/meetings/[id]/page.tsx`.
    Proved by: `apps/web/e2e/meeting.spec.ts`, "a meeting without files shows an empty state with an upload action".
+   Issue: [#11](https://github.com/ydunets/claude-advanced/issues/11)
 4. Documentation: the download Route Handler and the 404 behaviour in `apps/web/CLAUDE.md`.
    Files: modify `apps/web/CLAUDE.md`.
    Proved by: review.
+   Issue: [#12](https://github.com/ydunets/claude-advanced/issues/12)
 
 **Produces:** Route Handler `GET /meetings/[id]/files/[fileId]`.
 
@@ -166,6 +181,7 @@ Rules for every phase:
 ## Phase 4: Upload limits and interrupted uploads (API)
 
 **Status:** pending
+**Milestone:** [Meeting File Upload, Phase 4: Upload limits and interrupted uploads (API)](https://github.com/ydunets/claude-advanced/milestone/4)
 **Goal:** the API rejects files over the configured limit and files of disallowed formats with messages the web app can show, and an interrupted upload leaves neither a row nor a file on disk.
 **Touches:** backend, documentation
 **Depends on:** Phase 1 (`POST /meetings/:id/files`, `GET /meetings/:id/files`, `FILES_STORAGE_DIR`, `apps/api/test/meeting-files.e2e-spec.ts`)
@@ -178,15 +194,19 @@ Rules for every phase:
 1. A size limit read from the new `MAX_FILE_SIZE_BYTES` (`104857600` in `.env.example`): a larger file returns 413 with a message that states the limit in MB, and no row or file remains.
    Files: modify `meetings.module.ts`, `apps/api/.env.example`.
    Proved by: `apps/api/test/meeting-files.e2e-spec.ts`, "rejects a file over the size limit and keeps the list unchanged".
+   Issue: [#13](https://github.com/ydunets/claude-advanced/issues/13)
 2. A format check against the allowed extension list (compared case-insensitively): a disallowed file returns 415 with a message that names every allowed format, before it is written to disk.
    Files: create `apps/api/src/meetings/allowed-file-formats.ts` and its `.spec.ts`; modify `meetings.module.ts`.
    Proved by: `allowed-file-formats.spec.ts`, "accepts every allowed extension in any case and rejects others"; `meeting-files.e2e-spec.ts`, "rejects a disallowed format and names the allowed ones".
+   Issue: [#14](https://github.com/ydunets/claude-advanced/issues/14)
 3. An upload aborted mid-stream leaves no row and no partial file in `FILES_STORAGE_DIR`.
    Files: modify `upload-meeting-file.handler.ts` or the interceptor setup if the test fails; extend `meeting-files.e2e-spec.ts`.
    Proved by: `meeting-files.e2e-spec.ts`, "an aborted upload leaves no listed file and no file on disk".
+   Issue: [#15](https://github.com/ydunets/claude-advanced/issues/15)
 4. Documentation: `MAX_FILE_SIZE_BYTES`, the allowed formats and the 413 and 415 responses in `apps/api/CLAUDE.md`; the configuration table in the root `README.md`.
    Files: modify `apps/api/CLAUDE.md`, `README.md`.
    Proved by: review.
+   Issue: [#16](https://github.com/ydunets/claude-advanced/issues/16)
 
 **Produces:** `MAX_FILE_SIZE_BYTES`; `POST /meetings/:id/files` errors 413 (message states the limit) and 415 (message names the allowed formats), both in the Nest error body `{ statusCode, message, error }`.
 
@@ -199,6 +219,7 @@ Rules for every phase:
 ## Phase 5: Upload progress and error messages on the meeting page
 
 **Status:** pending
+**Milestone:** [Meeting File Upload, Phase 5: Upload progress and error messages on the meeting page](https://github.com/ydunets/claude-advanced/milestone/5)
 **Goal:** the owner sees upload progress, and a clear message for an oversized file, a disallowed format and a lost connection, while the file list stays unchanged.
 **Touches:** frontend, documentation
 **Depends on:** Phase 1 (`UploadFileForm`, Route Handler `POST /meetings/[id]/files`, `apps/web/e2e/meeting.spec.ts`), Phase 4 (`POST /meetings/:id/files` errors 413 and 415)
@@ -211,18 +232,23 @@ Rules for every phase:
 1. A progress indicator driven by the `XMLHttpRequest` upload progress events, shown while a file uploads.
    Files: modify `upload-file-form.tsx`.
    Proved by: `apps/web/e2e/meeting.spec.ts`, "an upload shows progress until the file is listed".
+   Issue: [#17](https://github.com/ydunets/claude-advanced/issues/17)
 2. A file over the limit is refused in the browser before sending, with a message that states the limit; the limit comes from the new server-side `MAX_UPLOAD_SIZE_BYTES` in `apps/web/.env.example`, passed to the form by the page. The Route Handler relays the API's 413 message for any request that reaches it.
    Files: modify `upload-file-form.tsx`, `apps/web/src/app/meetings/[id]/page.tsx`, the upload Route Handler, `apps/web/.env.example`.
    Proved by: `apps/web/e2e/meeting.spec.ts`, "a file over 100 MB is rejected with the limit and the list is unchanged".
+   Issue: [#18](https://github.com/ydunets/claude-advanced/issues/18)
 3. A disallowed format shows the API's 415 message naming the allowed formats.
    Files: modify `upload-file-form.tsx`.
    Proved by: `apps/web/e2e/meeting.spec.ts`, "a disallowed format is rejected with the allowed formats and the list is unchanged".
+   Issue: [#19](https://github.com/ydunets/claude-advanced/issues/19)
 4. A lost connection during upload shows an error, and the list does not change.
    Files: modify `upload-file-form.tsx`.
    Proved by: `apps/web/e2e/meeting.spec.ts`, "a lost connection shows an error and lists no incomplete file" (the test aborts the upload request through `page.route`).
+   Issue: [#20](https://github.com/ydunets/claude-advanced/issues/20)
 5. Documentation: `MAX_UPLOAD_SIZE_BYTES` in `apps/web/CLAUDE.md` and in the root `README.md` configuration table.
    Files: modify `apps/web/CLAUDE.md`, `README.md`.
    Proved by: review.
+   Issue: [#21](https://github.com/ydunets/claude-advanced/issues/21)
 
 **Produces:** `MAX_UPLOAD_SIZE_BYTES`.
 
