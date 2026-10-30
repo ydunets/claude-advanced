@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   index,
+  integer,
   pgTable,
   text,
   timestamp,
@@ -45,3 +46,23 @@ export const meetings = pgTable(
 );
 
 export type Meeting = typeof meetings.$inferSelect;
+
+export const meetingFiles = pgTable(
+  'meeting_files',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    meetingId: uuid('meeting_id')
+      .notNull()
+      .references(() => meetings.id, { onDelete: 'cascade' }),
+    originalName: text('original_name').notNull(),
+    mimeType: text('mime_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    storageName: text('storage_name').notNull(),
+    uploadedAt: timestamp('uploaded_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('meeting_files_meeting_id_idx').on(table.meetingId)],
+);
+
+export type MeetingFile = typeof meetingFiles.$inferSelect;

@@ -60,13 +60,21 @@ Rules for every phase:
 
 ## Phase 1: Upload and list a file on the meeting page (Tracer Bullet)
 
-**Status:** pending
+**Status:** done
 **Milestone:** [Meeting File Upload, Phase 1: Upload and list a file on the meeting page](https://github.com/ydunets/claude-advanced/milestone/1)
 **Goal:** an owner opens a meeting from the home page, uploads one allowed file, and sees it listed with its name, type, size and upload date, also after a reload or a new sign-in.
 **Touches:** database, backend, frontend, documentation
 **Read first:** `apps/api/src/database/schema.ts`, `apps/api/src/meetings/` (controller, `get-meeting.handler.ts`, `meeting-response.ts`, module), `apps/api/test/meetings.e2e-spec.ts`, `apps/web/src/app/page.tsx`, `apps/web/src/lib/meetings.ts`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/routes.ts`, `apps/web/src/proxy.ts`, `apps/web/e2e/home.spec.ts`, `apps/web/e2e/test-users.ts`, the Next.js docs in `apps/web/node_modules/next/dist/docs/` on Route Handlers, dynamic route `params` and Cache Components (enabled in `next.config.ts`; `/meetings/[id]` is the app's first dynamic route and must pass `pnpm build`)
 **Tests first:** `pnpm --filter api test:e2e meeting-files` and `pnpm --filter web test:e2e meeting`. Expected red: the API tests receive 404 from the missing files routes; the web tests find no meeting link on `/`, no `/meetings/[id]` page and no redirect to `/login`.
-**Red run:** not yet run.
+**Red run:** 2026-10-30, with a migrated database and a running `pnpm dev`.
+
+- `pnpm --filter api test:e2e meeting-files`
+  - "uploads a file and lists it with name, type, size and upload date": red, `POST /meetings/:id/files` answered 404 instead of 201.
+  - "lists two files uploaded under the same name": red, the first upload answered 404 instead of 201.
+- `pnpm --filter web test:e2e meeting`
+  - "an owner opens a meeting from the home page and sees its details": red, no link named after the meeting on `/`.
+  - "the meeting page sends a signed-out visitor to the login page": red, `/meetings/<id>` stayed on its URL instead of redirecting to `/login`.
+  - "an uploaded file is listed", "a second upload lists both files", "an uploaded file survives a reload and a new sign-in": red, the meeting page has no "File" input.
 
 **Tasks:**
 
