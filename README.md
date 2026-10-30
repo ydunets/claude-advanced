@@ -62,7 +62,7 @@ All configuration lives in git-ignored env files; neither the code nor
 | --------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `.env`          | Docker Compose                                          | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`                |
 | `apps/api/.env` | The API (`@nestjs/config`) and `drizzle-kit` (`dotenv`) | `PORT`, `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN_SECONDS`, `FILES_STORAGE_DIR` |
-| `apps/web/.env` | Next.js Server Actions and the Playwright suite         | `API_URL`, `E2E_BASE_URL`                                                           |
+| `apps/web/.env` | The Next.js server and the Playwright suite             | `API_URL`, `E2E_BASE_URL`                                                           |
 
 Create each from its `.env.example` and keep `DATABASE_URL` consistent with
 the Postgres values.

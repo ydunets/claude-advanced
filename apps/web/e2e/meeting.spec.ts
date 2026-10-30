@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { getMeetingRoute, ROUTES } from '../src/lib/routes';
 import {
   createTestMeeting,
   createTestUser,
@@ -32,9 +33,14 @@ const RECORDING_FILE: UploadedFile = {
 };
 const RECORDING_SIZE_LABEL = `${RECORDING_SIZE_MB} MB`;
 
-function getMeetingPath(meetingId: string): string {
-  return `/meetings/${meetingId}`;
-}
+// The browser reports no type for an unknown extension and sends the part as
+// application/octet-stream, which the API stores unchanged.
+const UNTYPED_FILE: UploadedFile = {
+  name: 'transcript.vtt-draft',
+  mimeType: '',
+  buffer: Buffer.from('00:00 Welcome'),
+};
+const UNTYPED_FILE_TYPE_LABEL = 'application/octet-stream';
 
 async function logInAndOpenMeeting(
   page: Page,
@@ -42,8 +48,8 @@ async function logInAndOpenMeeting(
   meetingId: string,
 ): Promise<void> {
   await logIn(page, email, TEST_PASSWORD);
-  await expect(page).toHaveURL('/');
-  await page.goto(getMeetingPath(meetingId));
+  await expect(page).toHaveURL(ROUTES.HOME);
+  await page.goto(getMeetingRoute(meetingId));
 }
 
 function getFileRows(page: Page): Locator {
@@ -64,7 +70,7 @@ test('an owner opens a meeting from the home page and sees its details', async (
 
   await page.getByRole('link', { name: MEETING.title }).click();
 
-  await expect(page).toHaveURL(getMeetingPath(meetingId));
+  await expect(page).toHaveURL(getMeetingRoute(meetingId));
   await expect(
     page.getByRole('heading', { level: 1, name: MEETING.title }),
   ).toBeVisible();
@@ -80,9 +86,9 @@ test('an owner opens a meeting from the home page and sees its details', async (
 test('the meeting page sends a signed-out visitor to the login page', async ({
   page,
 }) => {
-  await page.goto(getMeetingPath(randomUUID()));
+  await page.goto(getMeetingRoute(randomUUID()));
 
-  await expect(page).toHaveURL('/login');
+  await expect(page).toHaveURL(ROUTES.LOGIN);
 });
 
 test('an uploaded file is listed', async ({ page }) => {
@@ -130,10 +136,25 @@ test('an uploaded file survives a reload and a new sign-in', async ({
   await expect(getFileRows(page)).toHaveCount(1);
   await expect(getFileRows(page).first()).toContainText(NOTES_FILE.name);
 
-  await page.goto('/');
+  await page.goto(ROUTES.HOME);
   await page.getByRole('button', { name: 'Sign out' }).click();
-  await expect(page).toHaveURL('/login');
+  await expect(page).toHaveURL(ROUTES.LOGIN);
   await logInAndOpenMeeting(page, user.email, meetingId);
   await expect(getFileRows(page)).toHaveCount(1);
   await expect(getFileRows(page).first()).toContainText(NOTES_FILE.name);
+});
+
+test('a file without a type is listed as application/octet-stream', async ({
+  page,
+}) => {
+  const user = await createTestUser();
+  const meetingId = await createTestMeeting(user, MEETING);
+  await logInAndOpenMeeting(page, user.email, meetingId);
+
+  await uploadFile(page, UNTYPED_FILE);
+
+  const rows = getFileRows(page);
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText(UNTYPED_FILE.name);
+  await expect(rows.first()).toContainText(UNTYPED_FILE_TYPE_LABEL);
 });

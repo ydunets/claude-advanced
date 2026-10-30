@@ -10,8 +10,6 @@ import {
 import { getOwnedMeeting } from '../owned-meeting.js';
 import { UploadMeetingFileCommand } from './upload-meeting-file.command.js';
 
-const UNKNOWN_MIME_TYPE = 'application/octet-stream';
-
 @CommandHandler(UploadMeetingFileCommand)
 export class UploadMeetingFileHandler implements ICommandHandler<UploadMeetingFileCommand> {
   constructor(@Inject(DATABASE) private readonly database: Database) {}
@@ -28,7 +26,7 @@ export class UploadMeetingFileHandler implements ICommandHandler<UploadMeetingFi
         .values({
           meetingId,
           originalName: file.originalname,
-          mimeType: file.mimetype || UNKNOWN_MIME_TYPE,
+          mimeType: file.mimetype,
           sizeBytes: file.size,
           storageName: file.filename,
         })

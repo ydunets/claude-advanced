@@ -57,7 +57,7 @@ Validation runs through a global `ValidationPipe` registered as `APP_PIPE` in `A
 
 ### File storage
 
-`MulterModule.registerAsync` in `meetings.module.ts` configures the `FileInterceptor` from `@nestjs/platform-express`: multer writes each upload to `FILES_STORAGE_DIR` under a random hex name (the `storage_name` column), so duplicate original names never collide, and it decodes file names as UTF-8. The row is inserted only after the file is on disk; when the owner check or the insert fails, the upload handler deletes the stored file. An empty client MIME type is stored as `application/octet-stream`. Files live on the API server's disk only; no external storage service is used.
+`MulterModule.registerAsync` in `meetings.module.ts` configures the `FileInterceptor` from `@nestjs/platform-express`: multer writes each upload to `FILES_STORAGE_DIR` under a random hex name (the `storage_name` column), so duplicate original names never collide, and it decodes file names as UTF-8. The row is inserted only after the file is on disk; when the owner check or the insert fails, the upload handler deletes the stored file. The stored MIME type is the one the browser sent for the part; browsers send `application/octet-stream` for a file they cannot type, and busboy reads a part without any Content-Type as `text/plain`. Files live on the API server's disk only; no external storage service is used.
 
 ## Environment variables
 

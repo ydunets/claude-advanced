@@ -19,6 +19,21 @@ export const metadata: Metadata = {
   title: 'Meeting · Video Meetings',
 };
 
+const SECTION_IDS = {
+  PARTICIPANTS: 'participants',
+  FILES: 'files',
+} as const;
+
+const DETAIL_SEPARATOR = ' · ';
+
+type MeetingContentProps = {
+  meetingId: string;
+};
+
+type FileListProps = {
+  files: MeetingFile[];
+};
+
 export default function MeetingPage({
   params,
 }: PageProps<'/meetings/[id]'>): React.JSX.Element {
@@ -49,9 +64,7 @@ export default function MeetingPage({
 
 async function MeetingContent({
   meetingId,
-}: {
-  meetingId: string;
-}): Promise<React.JSX.Element> {
+}: MeetingContentProps): Promise<React.JSX.Element> {
   const accessToken = await findAccessToken();
   if (!accessToken) {
     redirect(ROUTES.LOGIN);
@@ -73,8 +86,11 @@ async function MeetingContent({
         </p>
       </div>
 
-      <section aria-labelledby="participants" className="flex flex-col gap-3">
-        <h2 id="participants" className="text-base font-semibold">
+      <section
+        aria-labelledby={SECTION_IDS.PARTICIPANTS}
+        className="flex flex-col gap-3"
+      >
+        <h2 id={SECTION_IDS.PARTICIPANTS} className="text-base font-semibold">
           Participants
         </h2>
         {meeting.participants.length === 0 ? (
@@ -90,8 +106,11 @@ async function MeetingContent({
         )}
       </section>
 
-      <section aria-labelledby="files" className="flex flex-col gap-4">
-        <h2 id="files" className="text-base font-semibold">
+      <section
+        aria-labelledby={SECTION_IDS.FILES}
+        className="flex flex-col gap-4"
+      >
+        <h2 id={SECTION_IDS.FILES} className="text-base font-semibold">
           Files
         </h2>
         <UploadFileForm meetingId={meeting.id} />
@@ -101,7 +120,7 @@ async function MeetingContent({
   );
 }
 
-function FileList({ files }: { files: MeetingFile[] }): React.JSX.Element {
+function FileList({ files }: FileListProps): React.JSX.Element {
   return (
     <Card className="p-0 shadow-none">
       <ul className="divide-y divide-border">
@@ -113,9 +132,9 @@ function FileList({ files }: { files: MeetingFile[] }): React.JSX.Element {
             <span className="font-medium break-all">{file.name}</span>
             <span className="text-sm text-muted sm:shrink-0">
               {file.mimeType}
-              {' · '}
+              {DETAIL_SEPARATOR}
               {formatFileSize(file.size)}
-              {' · '}
+              {DETAIL_SEPARATOR}
               <time dateTime={file.uploadedAt}>
                 {formatDateTime(file.uploadedAt)}
               </time>
