@@ -1,6 +1,6 @@
 # video-meetings
 
-A pnpm workspace containing two applications. The API implements email and password registration and login that issue JWTs, and a JWT protected meetings module (create, list, get by id). It follows CQRS through `@nestjs/cqrs`, as described in `apps/api/CLAUDE.md`. The web app has `/register`, `/login` and a protected home page `/`; it calls the API from Server Actions and Server Components (server to server, so the API needs no CORS) using `API_URL` from `apps/web/.env`.
+A pnpm workspace containing two applications. The API implements email and password registration and login that issue JWTs, and a JWT protected meetings module (create, list, get by id; upload and list a meeting's files, stored on the API server's disk under `FILES_STORAGE_DIR`). It follows CQRS through `@nestjs/cqrs`, as described in `apps/api/CLAUDE.md`. The web app has `/register`, `/login`, a protected home page `/` and a protected meeting page `/meetings/[id]`; it calls the API from Server Actions, Server Components and Route Handlers (server to server, so the API needs no CORS) using `API_URL` from `apps/web/.env`. File uploads go from the browser to the Route Handler `POST /meetings/[id]/files`, which streams them to the API.
 
 | Path       | Stack                                              | Default port |
 | ---------- | -------------------------------------------------- | ------------ |

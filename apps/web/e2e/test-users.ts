@@ -27,7 +27,7 @@ export async function createTestUser(): Promise<TestUser> {
 export async function createTestMeeting(
   user: TestUser,
   meeting: TestMeeting,
-): Promise<void> {
+): Promise<string> {
   const response = await fetch(`${getApiUrl()}${API_ENDPOINTS.MEETINGS}`, {
     method: 'POST',
     headers: {
@@ -39,6 +39,8 @@ export async function createTestMeeting(
   if (!response.ok) {
     throw new Error(`Creating "${meeting.title}" failed: ${response.status}`);
   }
+  const { id } = (await response.json()) as { id: string };
+  return id;
 }
 
 export async function logIn(

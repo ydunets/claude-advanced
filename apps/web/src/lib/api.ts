@@ -19,3 +19,16 @@ export function getApiUrl(): string {
   }
   return apiUrl;
 }
+
+// The id comes from the page URL, so it is encoded to keep it one segment.
+export function getMeetingEndpoint(meetingId: string): string {
+  return `${API_ENDPOINTS.MEETINGS}/${encodeURIComponent(meetingId)}`;
+}
+
+export function getMeetingFilesEndpoint(meetingId: string): string {
+  return `${getMeetingEndpoint(meetingId)}/files`;
+}
+
+export function buildBearerAuthorization(accessToken: string): string {
+  return `Bearer ${accessToken}`;
+}

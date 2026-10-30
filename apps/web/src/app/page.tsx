@@ -1,27 +1,21 @@
 import { Button, Card } from '@heroui/react';
+import { linkVariants } from '@heroui/styles';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
+import { formatCount, formatDateTime } from '@/lib/format';
 import { findMeetings, type Meeting } from '@/lib/meetings';
-import { ROUTES } from '@/lib/routes';
+import { getMeetingRoute, ROUTES } from '@/lib/routes';
 import { findAccessToken, getTokenEmail } from '@/lib/session';
 import { signOut } from './(auth)/actions';
 import { BrandMark } from './brand-mark';
 
 const LATEST_MEETINGS_COUNT = 3;
 
-const MEETING_DATE_FORMAT = new Intl.DateTimeFormat('en', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-});
-
 export const metadata: Metadata = {
   title: 'Your meetings · Video Meetings',
 };
-
-function formatCount(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
-}
 
 // The API lists meetings in ascending date order, so the latest come last.
 function getLatestMeetings(meetings: Meeting[]): Meeting[] {
@@ -93,10 +87,18 @@ async function HomeContent(): Promise<React.JSX.Element> {
                     key={meeting.id}
                     className="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <span className="font-medium">{meeting.title}</span>
+                    <Link
+                      href={getMeetingRoute(meeting.id)}
+                      className={linkVariants().base({
+                        className:
+                          'font-medium break-words underline underline-offset-4',
+                      })}
+                    >
+                      {meeting.title}
+                    </Link>
                     <span className="text-sm text-muted">
                       <time dateTime={meeting.date}>
-                        {MEETING_DATE_FORMAT.format(new Date(meeting.date))}
+                        {formatDateTime(meeting.date)}
                       </time>
                       {' · '}
                       {formatCount(meeting.participants.length, 'participant')}
