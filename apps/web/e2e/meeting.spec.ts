@@ -1,12 +1,20 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { readFile, truncate, writeFile } from 'node:fs/promises';
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type Route,
+} from '@playwright/test';
 import { HTTP_STATUS } from '../src/lib/api';
 import {
   getMeetingFileRoute,
+  getMeetingFilesRoute,
   getMeetingRoute,
   ROUTES,
 } from '../src/lib/routes';
+import { getMaxUploadSizeBytes } from '../src/lib/upload-limits';
 import {
   createTestMeeting,
   createTestUser,
@@ -55,6 +63,31 @@ const REPORT_FILE: UploadedFile = {
   mimeType: 'application/pdf',
   buffer: randomBytes(64 * 1024),
 };
+const EXECUTABLE_FILE: UploadedFile = {
+  name: 'setup.exe',
+  mimeType: 'application/x-msdownload',
+  buffer: Buffer.from('MZ'),
+};
+// The PRD's list, kept here so the test checks the message independently.
+const ALLOWED_FORMATS = [
+  'mp4',
+  'webm',
+  'mov',
+  'mp3',
+  'm4a',
+  'wav',
+  'ogg',
+  'pdf',
+  'docx',
+  'pptx',
+  'xlsx',
+  'txt',
+  'md',
+];
+// The PRD states the limit in this form; the form must show it verbatim.
+const UPLOAD_LIMIT_LABEL = '100 MB';
+const OVERSIZED_FILE_NAME = 'oversized.mp4';
+const CONNECTION_LOST_TEXT = /connection/i;
 const MALFORMED_MEETING_ID = 'not-a-uuid';
 const MALFORMED_FILE_ID = 'not-a-uuid';
 const EMPTY_FILES_TEXT = 'No files yet.';
@@ -70,8 +103,12 @@ async function logInAndOpenMeeting(
   await page.goto(getMeetingRoute(meetingId));
 }
 
+function getFilesRegion(page: Page): Locator {
+  return page.getByRole('region', { name: 'Files' });
+}
+
 function getFileRows(page: Page): Locator {
-  return page.getByRole('region', { name: 'Files' }).getByRole('listitem');
+  return getFilesRegion(page).getByRole('listitem');
 }
 
 function getDownloadLink(row: Locator): Locator {
@@ -84,7 +121,22 @@ async function signOut(page: Page): Promise<void> {
   await expect(page).toHaveURL(ROUTES.LOGIN);
 }
 
-async function uploadFile(page: Page, file: UploadedFile): Promise<void> {
+function getUploadAlert(page: Page): Locator {
+  return getFilesRegion(page).getByRole('alert');
+}
+
+async function interceptUploads(
+  page: Page,
+  meetingId: string,
+  handler: (route: Route) => Promise<void>,
+): Promise<void> {
+  await page.route(`**${getMeetingFilesRoute(meetingId)}`, handler);
+}
+
+async function uploadFile(
+  page: Page,
+  file: UploadedFile | string,
+): Promise<void> {
   await page.getByLabel('File', { exact: true }).setInputFiles(file);
   await page.getByRole('button', { name: 'Upload' }).click();
 }
@@ -108,7 +160,7 @@ test('an owner opens a meeting from the home page and sees its details', async (
     page.getByRole('main').locator(`time[datetime="${MEETING.date}"]`),
   ).toBeVisible();
   await expect(page.getByText(PARTICIPANT_EMAIL)).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Files' })).toBeVisible();
+  await expect(getFilesRegion(page)).toBeVisible();
 });
 
 test('the meeting page sends a signed-out visitor to the login page', async ({
@@ -250,7 +302,7 @@ test('a meeting without files shows an empty state with an upload action', async
 
   await logInAndOpenMeeting(page, user.email, meetingId);
 
-  const filesRegion = page.getByRole('region', { name: 'Files' });
+  const filesRegion = getFilesRegion(page);
   const emptyState = filesRegion
     .locator('div')
     .filter({ has: page.getByText(EMPTY_FILES_TEXT) })
@@ -263,4 +315,93 @@ test('a meeting without files shows an empty state with an upload action', async
   await uploadFile(page, NOTES_FILE);
   await expect(getFileRows(page)).toHaveCount(1);
   await expect(filesRegion.getByText(EMPTY_FILES_TEXT)).toHaveCount(0);
+});
+
+test('an upload shows progress until the file is listed', async ({ page }) => {
+  const user = await createTestUser();
+  const meetingId = await createTestMeeting(user, MEETING);
+  await logInAndOpenMeeting(page, user.email, meetingId);
+  // Holding the request keeps the upload in flight long enough to observe.
+  const { promise: uploadReleased, resolve: releaseUpload } =
+    Promise.withResolvers<void>();
+  await interceptUploads(page, meetingId, async (route) => {
+    await uploadReleased;
+    await route.continue();
+  });
+
+  await uploadFile(page, NOTES_FILE);
+
+  const progress = page.getByRole('progressbar', { name: 'Upload progress' });
+  await expect(progress).toBeVisible();
+  releaseUpload();
+  await expect(progress).toBeHidden();
+  // Read once, without retrying: the bar must stay until the file is listed.
+  expect(await getFileRows(page).count()).toBe(1);
+});
+
+test('a file over 100 MB is rejected with the limit and the list is unchanged', async ({
+  page,
+}, testInfo) => {
+  const user = await createTestUser();
+  const meetingId = await createTestMeeting(user, MEETING);
+  await uploadTestFile(user, meetingId, NOTES_FILE);
+  const maxUploadSizeBytes = getMaxUploadSizeBytes();
+  // A sparse file: one byte over the limit without writing 100 MB to disk.
+  const oversizedFilePath = testInfo.outputPath(OVERSIZED_FILE_NAME);
+  await writeFile(oversizedFilePath, '');
+  await truncate(oversizedFilePath, maxUploadSizeBytes + 1);
+  const sentUploads: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === getMeetingFilesRoute(meetingId)
+    ) {
+      sentUploads.push(request.url());
+    }
+  });
+  await logInAndOpenMeeting(page, user.email, meetingId);
+
+  await uploadFile(page, oversizedFilePath);
+
+  await expect(getUploadAlert(page)).toContainText(UPLOAD_LIMIT_LABEL);
+  expect(sentUploads).toEqual([]);
+  await page.reload();
+  await expect(getFileRows(page)).toHaveCount(1);
+});
+
+test('a disallowed format is rejected with the allowed formats and the list is unchanged', async ({
+  page,
+}) => {
+  const user = await createTestUser();
+  const meetingId = await createTestMeeting(user, MEETING);
+  await uploadTestFile(user, meetingId, NOTES_FILE);
+  await logInAndOpenMeeting(page, user.email, meetingId);
+
+  await uploadFile(page, EXECUTABLE_FILE);
+
+  const alert = getUploadAlert(page);
+  await expect(alert).toBeVisible();
+  for (const format of ALLOWED_FORMATS) {
+    await expect(alert).toContainText(format);
+  }
+  await page.reload();
+  await expect(getFileRows(page)).toHaveCount(1);
+});
+
+test('a lost connection shows an error and lists no incomplete file', async ({
+  page,
+}) => {
+  const user = await createTestUser();
+  const meetingId = await createTestMeeting(user, MEETING);
+  await uploadTestFile(user, meetingId, NOTES_FILE);
+  await logInAndOpenMeeting(page, user.email, meetingId);
+  await interceptUploads(page, meetingId, (route) =>
+    route.abort('connectionreset'),
+  );
+
+  await uploadFile(page, RECORDING_FILE);
+
+  await expect(getUploadAlert(page)).toContainText(CONNECTION_LOST_TEXT);
+  await page.reload();
+  await expect(getFileRows(page)).toHaveCount(1);
 });

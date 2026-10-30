@@ -66,7 +66,7 @@ All configuration lives in git-ignored env files; neither the code nor
 | --------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `.env`          | Docker Compose                                          | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`                                       |
 | `apps/api/.env` | The API (`@nestjs/config`) and `drizzle-kit` (`dotenv`) | `PORT`, `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN_SECONDS`, `FILES_STORAGE_DIR`, `MAX_FILE_SIZE_BYTES` |
-| `apps/web/.env` | The Next.js server and the Playwright suite             | `API_URL`, `E2E_BASE_URL`                                                                                  |
+| `apps/web/.env` | The Next.js server and the Playwright suite             | `API_URL`, `E2E_BASE_URL`, `MAX_UPLOAD_SIZE_BYTES`                                                         |
 
 Create each from its `.env.example` and keep `DATABASE_URL` consistent with
 the Postgres values.
@@ -105,7 +105,7 @@ running than the one before it.
 - **Web end-to-end tests** open Chromium against the app at `E2E_BASE_URL` and
   create their users through the API at `API_URL`. They cover registration,
   login, the protected home page, signing out, and the meeting page with file
-  uploads, downloads, the empty state and the not-found page. They start no server themselves.
+  uploads (progress, the size limit, a disallowed format and a lost connection), downloads, the empty state and the not-found page. They start no server themselves.
 
 ### First run
 
