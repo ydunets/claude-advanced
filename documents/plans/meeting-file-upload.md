@@ -201,14 +201,20 @@ Rules for every phase:
 
 ## Phase 4: Upload limits and interrupted uploads (API)
 
-**Status:** pending
+**Status:** done
 **Milestone:** [Meeting File Upload, Phase 4: Upload limits and interrupted uploads (API)](https://github.com/ydunets/claude-advanced/milestone/4)
 **Goal:** the API rejects files over the configured limit and files of disallowed formats with messages the web app can show, and an interrupted upload leaves neither a row nor a file on disk.
 **Touches:** backend, documentation
 **Depends on:** Phase 1 (`POST /meetings/:id/files`, `GET /meetings/:id/files`, `FILES_STORAGE_DIR`, `apps/api/test/meeting-files.e2e-spec.ts`)
 **Read first:** `apps/api/src/meetings/meetings.module.ts` (the `MulterModule` registration), `apps/api/src/meetings/commands/upload-meeting-file.handler.ts`, `apps/api/src/auth/password.spec.ts` (unit test style), `apps/api/node_modules/@nestjs/platform-express/multer/`
 **Tests first:** `pnpm --filter api test allowed-file-formats` and `pnpm --filter api test:e2e meeting-files`. Expected red: the unit test fails because `allowed-file-formats.ts` does not exist; the oversized and disallowed uploads receive 201 instead of 413 and 415. The aborted-upload test may be green before implementation, because Phase 1 inserts the row only after the file is on disk; apply the rule for such tests.
-**Red run:** not yet run.
+**Red run:** 2026-10-30, `pnpm --filter api test allowed-file-formats` and `pnpm --filter api test:e2e meeting-files`, with a migrated database and `MAX_FILE_SIZE_BYTES` in `apps/api/.env`.
+
+- "accepts every allowed extension in any case and rejects others": red, `allowed-file-formats.ts` did not exist.
+- "rejects a file over the size limit and keeps the list unchanged": red, 201 instead of 413.
+- "rejects a disallowed format and names the allowed ones": red, 201 instead of 415.
+- "an aborted upload leaves no listed file and no file on disk": green before implementation, because multer 2.4.0 removes the partial file when the request aborts and the row is inserted only after the file is complete. The test first waits until multer has created the partial file, so it aborts a real write. Forced failure: a storage engine whose `_removeFile` does nothing left the partial file behind ("expected 297 to be 296"); the module was restored and the test passed again.
+- The Phase 1 web fixture `transcript.vtt-draft` has a disallowed extension and would now receive 415. It became `transcript.md` sent as `application/octet-stream`, because Playwright infers a type from every allowed extension. The test now proves only that the API stores that fallback type unchanged; the browser's own fallback for an untyped file is no longer exercised.
 
 **Tasks:**
 

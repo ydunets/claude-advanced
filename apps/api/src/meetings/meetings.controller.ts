@@ -21,6 +21,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CreateMeetingCommand } from './commands/create-meeting.command.js';
 import { UploadMeetingFileCommand } from './commands/upload-meeting-file.command.js';
 import { CreateMeetingDto } from './dto/create-meeting.dto.js';
+import { FileSizeLimitInterceptor } from './file-size-limit.interceptor.js';
 import type { MeetingFileResponse } from './meeting-file-response.js';
 import type { MeetingResponse } from './meeting-response.js';
 import { GetMeetingFileQuery } from './queries/get-meeting-file.query.js';
@@ -72,7 +73,7 @@ export class MeetingsController {
   }
 
   @Post(':id/files')
-  @UseInterceptors(FileInterceptor(FILE_FIELD))
+  @UseInterceptors(FileSizeLimitInterceptor, FileInterceptor(FILE_FIELD))
   uploadMeetingFile(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) meetingId: string,

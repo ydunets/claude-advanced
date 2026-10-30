@@ -1,5 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readdir, rm } from 'node:fs/promises';
+import { createServer, request as httpRequest } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpStatus, INestApplication } from '@nestjs/common';
@@ -30,6 +32,31 @@ const REPORT_FILE = {
   mimeType: 'application/pdf',
   content: randomBytes(64 * 1024),
 };
+const RECORDING_FILE = { name: 'recording.mp4', mimeType: 'video/mp4' };
+const EXECUTABLE_FILE = {
+  name: 'setup.exe',
+  mimeType: 'application/x-msdownload',
+  content: Buffer.from('MZ'),
+};
+const ALLOWED_FORMATS = [
+  'mp4',
+  'webm',
+  'mov',
+  'mp3',
+  'm4a',
+  'wav',
+  'ogg',
+  'pdf',
+  'docx',
+  'pptx',
+  'xlsx',
+  'txt',
+  'md',
+];
+const BYTES_PER_MEGABYTE = 1024 * 1024;
+const PARTIAL_UPLOAD_BYTES = 256 * 1024;
+const OVERSIZED_UPLOAD_TIMEOUT_MS = 60_000;
+const STORAGE_WAIT_OPTIONS = { timeout: 2_000, interval: 50 };
 const MALFORMED_FILE_ID = 'not-a-uuid';
 const NO_SNIFF = 'nosniff';
 
@@ -118,6 +145,51 @@ describe('Meeting files (e2e)', () => {
     return (await readdir(getStorageDir())).length;
   }
 
+  function getMaxFileSizeBytes(): number {
+    return Number(
+      app.get(ConfigService).getOrThrow<string>('MAX_FILE_SIZE_BYTES'),
+    );
+  }
+
+  // Supertest cannot stop a body halfway, so this sends the multipart body by
+  // hand, waits until multer has created the partial file, then drops the
+  // connection.
+  async function abortUploadAfterPartialWrite(
+    accessToken: string,
+    meetingId: string,
+    storedFileCount: number,
+  ): Promise<void> {
+    const server = createServer(app.getHttpAdapter().getInstance());
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    try {
+      const boundary = `upload-${randomUUID()}`;
+      const upload = httpRequest({
+        port: (server.address() as AddressInfo).port,
+        method: 'POST',
+        path: getMeetingFilesPath(meetingId),
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+      });
+      // destroy() below makes the request fail with ECONNRESET on purpose.
+      upload.on('error', () => undefined);
+      upload.write(
+        `--${boundary}\r\n` +
+          `Content-Disposition: form-data; name="${FILE_FIELD}"; filename="${RECORDING_FILE.name}"\r\n` +
+          `Content-Type: ${RECORDING_FILE.mimeType}\r\n\r\n`,
+      );
+      upload.write(randomBytes(PARTIAL_UPLOAD_BYTES));
+      await vi.waitFor(async () => {
+        expect(await countStoredFiles()).toBe(storedFileCount + 1);
+      }, STORAGE_WAIT_OPTIONS);
+      upload.destroy();
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  }
+
   async function deleteStoredFile(fileId: string): Promise<void> {
     const [meetingFile] = await app
       .get<Database>(DATABASE)
@@ -195,6 +267,89 @@ describe('Meeting files (e2e)', () => {
     expect(second.body.id).not.toBe(first.body.id);
     expect(second.body.size).toBe(secondContent.length);
     expect(listed.body).toEqual([first.body, second.body]);
+  });
+
+  describe('upload limits', () => {
+    it(
+      'rejects a file over the size limit and keeps the list unchanged',
+      async () => {
+        const accessToken = await registerUserAndGetToken(app);
+        const meetingId = await createMeetingAndGetId(accessToken);
+        const storedFileCount = await countStoredFiles();
+        const maxFileSizeBytes = getMaxFileSizeBytes();
+
+        const response = await uploadFile(
+          accessToken,
+          meetingId,
+          Buffer.alloc(maxFileSizeBytes + 1),
+          RECORDING_FILE.name,
+          RECORDING_FILE.mimeType,
+        ).expect(HttpStatus.PAYLOAD_TOO_LARGE);
+
+        expect(response.body).toEqual({
+          statusCode: HttpStatus.PAYLOAD_TOO_LARGE,
+          message: expect.stringContaining(
+            `${maxFileSizeBytes / BYTES_PER_MEGABYTE} MB`,
+          ),
+          error: 'Payload Too Large',
+        });
+        const listed = await listFiles(accessToken, meetingId).expect(
+          HttpStatus.OK,
+        );
+        expect(listed.body).toEqual([]);
+        expect(await countStoredFiles()).toBe(storedFileCount);
+      },
+      OVERSIZED_UPLOAD_TIMEOUT_MS,
+    );
+
+    it('rejects a disallowed format and names the allowed ones', async () => {
+      const accessToken = await registerUserAndGetToken(app);
+      const meetingId = await createMeetingAndGetId(accessToken);
+      const storedFileCount = await countStoredFiles();
+
+      const response = await uploadFile(
+        accessToken,
+        meetingId,
+        EXECUTABLE_FILE.content,
+        EXECUTABLE_FILE.name,
+        EXECUTABLE_FILE.mimeType,
+      ).expect(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+
+      expect(response.body).toEqual({
+        statusCode: HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+        message: expect.any(String),
+        error: 'Unsupported Media Type',
+      });
+      for (const format of ALLOWED_FORMATS) {
+        expect(response.body.message).toContain(format);
+      }
+      const listed = await listFiles(accessToken, meetingId).expect(
+        HttpStatus.OK,
+      );
+      expect(listed.body).toEqual([]);
+      expect(await countStoredFiles()).toBe(storedFileCount);
+    });
+
+    it('an aborted upload leaves no listed file and no file on disk', async () => {
+      const accessToken = await registerUserAndGetToken(app);
+      const meetingId = await createMeetingAndGetId(accessToken);
+      const storedFileCount = await countStoredFiles();
+
+      await abortUploadAfterPartialWrite(
+        accessToken,
+        meetingId,
+        storedFileCount,
+      );
+
+      await vi.waitFor(async () => {
+        expect(await countStoredFiles()).toBe(storedFileCount);
+      }, STORAGE_WAIT_OPTIONS);
+
+      const listed = await listFiles(accessToken, meetingId).expect(
+        HttpStatus.OK,
+      );
+      expect(listed.body).toEqual([]);
+    });
   });
 
   describe('download', () => {
