@@ -11,8 +11,9 @@ The API exposes `POST /auth/register` and `POST /auth/login`; both take
 `{ email, password }` and return `{ accessToken }` (a JWT). With
 `Authorization: Bearer <accessToken>`, `POST /meetings`, `GET /meetings` and
 `GET /meetings/:id` manage the current user's meetings, and
-`POST /meetings/:id/files` (multipart field `file`) and `GET /meetings/:id/files`
-upload and list a meeting's files. Uploaded files are stored on the API
+`POST /meetings/:id/files` (multipart field `file`), `GET /meetings/:id/files`
+and `GET /meetings/:id/files/:fileId` upload, list and download a meeting's
+files. Uploaded files are stored on the API
 server's disk under `FILES_STORAGE_DIR`. The API follows CQRS
 (`@nestjs/cqrs`); see `apps/api/CLAUDE.md`.
 
