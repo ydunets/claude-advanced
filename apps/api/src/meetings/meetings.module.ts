@@ -6,6 +6,7 @@ import { DatabaseModule } from '../database/database.module.js';
 import { CreateMeetingHandler } from './commands/create-meeting.handler.js';
 import { UploadMeetingFileHandler } from './commands/upload-meeting-file.handler.js';
 import { MeetingsController } from './meetings.controller.js';
+import { GetMeetingFileHandler } from './queries/get-meeting-file.handler.js';
 import { GetMeetingHandler } from './queries/get-meeting.handler.js';
 import { ListMeetingFilesHandler } from './queries/list-meeting-files.handler.js';
 import { ListMeetingsHandler } from './queries/list-meetings.handler.js';
@@ -33,6 +34,7 @@ const FILE_NAME_CHARSET = 'utf8';
     GetMeetingHandler,
     UploadMeetingFileHandler,
     ListMeetingFilesHandler,
+    GetMeetingFileHandler,
   ],
 })
 export class MeetingsModule {}

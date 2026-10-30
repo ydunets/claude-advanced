@@ -6,12 +6,15 @@ import {
   ParseFilePipe,
   ParseUUIDPipe,
   Post,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import type { AuthenticatedUser } from '../auth/auth-token.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
@@ -20,11 +23,15 @@ import { UploadMeetingFileCommand } from './commands/upload-meeting-file.command
 import { CreateMeetingDto } from './dto/create-meeting.dto.js';
 import type { MeetingFileResponse } from './meeting-file-response.js';
 import type { MeetingResponse } from './meeting-response.js';
+import { GetMeetingFileQuery } from './queries/get-meeting-file.query.js';
 import { GetMeetingQuery } from './queries/get-meeting.query.js';
 import { ListMeetingFilesQuery } from './queries/list-meeting-files.query.js';
 import { ListMeetingsQuery } from './queries/list-meetings.query.js';
 
 const FILE_FIELD = 'file';
+const CONTENT_TYPE_HEADER = 'Content-Type';
+const CONTENT_TYPE_OPTIONS_HEADER = 'X-Content-Type-Options';
+const NO_SNIFF = 'nosniff';
 
 @Controller('meetings')
 @UseGuards(JwtAuthGuard)
@@ -82,5 +89,23 @@ export class MeetingsController {
     @Param('id', ParseUUIDPipe) meetingId: string,
   ): Promise<MeetingFileResponse[]> {
     return this.queryBus.execute(new ListMeetingFilesQuery(user.id, meetingId));
+  }
+
+  @Get(':id/files/:fileId')
+  async downloadMeetingFile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) meetingId: string,
+    @Param('fileId', ParseUUIDPipe) fileId: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const file = await this.queryBus.execute(
+      new GetMeetingFileQuery(user.id, meetingId, fileId),
+    );
+    // attachment() encodes non-ASCII names (RFC 6266) but also guesses a
+    // Content-Type from the extension, so the stored type is set after it.
+    response.attachment(file.name);
+    response.setHeader(CONTENT_TYPE_HEADER, file.mimeType);
+    response.setHeader(CONTENT_TYPE_OPTIONS_HEADER, NO_SNIFF);
+    return new StreamableFile(file.content, { length: file.size });
   }
 }

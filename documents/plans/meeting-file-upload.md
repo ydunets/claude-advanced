@@ -113,14 +113,20 @@ Rules for every phase:
 
 ## Phase 2: Download endpoint and owner isolation (API)
 
-**Status:** pending
+**Status:** done
 **Milestone:** [Meeting File Upload, Phase 2: Download endpoint and owner isolation (API)](https://github.com/ydunets/claude-advanced/milestone/2)
 **Goal:** the API returns the original bytes of a file to its owner and answers 404 to everyone else on every files route.
 **Touches:** backend, documentation
 **Depends on:** Phase 1 (`meeting_files`, `POST /meetings/:id/files`, `GET /meetings/:id/files`, `MeetingFileResponse`, `apps/api/test/meeting-files.e2e-spec.ts`)
 **Read first:** `apps/api/src/meetings/queries/get-meeting.handler.ts`, `apps/api/src/meetings/queries/list-meeting-files.handler.ts`, `apps/api/test/meeting-files.e2e-spec.ts`, `apps/api/test/meetings.e2e-spec.ts` ("returns 404 for another user's meeting")
 **Tests first:** `pnpm --filter api test:e2e meeting-files`. Expected red: the download tests receive 404 from the missing route instead of 200 with the file. The 404 tests are expected green before implementation, because a missing route and the Phase 1 owner filter already answer 404; apply the rule for such tests.
-**Red run:** not yet run.
+**Red run:** 2026-10-30, `pnpm --filter api test:e2e meeting-files`, with a migrated database.
+
+- "downloads the exact bytes that were uploaded": red, `GET /meetings/:id/files/:fileId` answered 404 instead of 200.
+- "returns 404 for an unknown file id", "returns 404 to another user on upload, list and download", "does not serve a file through a different meeting id": red, not green as the plan expected. Each test first asserts that the owner downloads the file with 200, so a missing route cannot pass it; that assertion received 404.
+- "rejects a file id that is not a UUID" (the 400 rule of task 1): red, 404 instead of 400.
+- Forced failures after green, each reverted locally and restored: dropping the meeting id from the download lookup failed "does not serve a file through a different meeting id"; removing the stored-file cleanup from the upload handler failed "returns 404 to another user on upload, list and download" (88 stored files instead of 87).
+- Review follow-up, 2026-10-30. "returns 404 when the stored file is gone from disk" was added test first and was red (400 "Bad Request" from `StreamableFile` instead of 404); the handler now opens the stored file before the response starts. The 404 checks that had failed only on their 200 guard were then forced to fail on the 404 itself: a lookup that ignores the file id failed "returns 404 for an unknown file id"; a list without the owner check and a download without the owner check each failed "returns 404 to another user on upload, list and download" (200 instead of 404).
 
 **Tasks:**
 

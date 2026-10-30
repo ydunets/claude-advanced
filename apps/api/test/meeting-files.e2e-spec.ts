@@ -1,8 +1,15 @@
+import { randomBytes, randomUUID } from 'node:crypto';
+import { readdir, rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpStatus, INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
+import { DATABASE, type Database } from './../src/database/database.module.js';
+import { meetingFiles } from './../src/database/schema.js';
 import { registerUserAndGetToken } from './test-users.js';
 
 const ENDPOINTS = {
@@ -16,8 +23,31 @@ const NOTES_FILE = {
   content: Buffer.from('Agenda: ship the file upload.'),
 };
 
+// A non-ASCII name with a space checks both the UTF-8 decoding of uploads and
+// the RFC 6266 encoding of the download header.
+const REPORT_FILE = {
+  name: 'Протокол встречи.pdf',
+  mimeType: 'application/pdf',
+  content: randomBytes(64 * 1024),
+};
+const MALFORMED_FILE_ID = 'not-a-uuid';
+const NO_SNIFF = 'nosniff';
+
 function getMeetingFilesPath(meetingId: string): string {
   return `${ENDPOINTS.MEETINGS}/${meetingId}/files`;
+}
+
+function getMeetingFilePath(meetingId: string, fileId: string): string {
+  return `${getMeetingFilesPath(meetingId)}/${fileId}`;
+}
+
+function collectBinaryBody(
+  response: request.Response,
+  callback: (error: Error | null, body: Buffer) => void,
+): void {
+  const chunks: Buffer[] = [];
+  response.on('data', (chunk: Buffer) => chunks.push(chunk));
+  response.on('end', () => callback(null, Buffer.concat(chunks)));
 }
 
 describe('Meeting files (e2e)', () => {
@@ -66,6 +96,49 @@ describe('Meeting files (e2e)', () => {
     return request(app.getHttpServer())
       .get(getMeetingFilesPath(meetingId))
       .auth(accessToken, { type: 'bearer' });
+  }
+
+  function downloadFile(
+    accessToken: string,
+    meetingId: string,
+    fileId: string,
+  ) {
+    return request(app.getHttpServer())
+      .get(getMeetingFilePath(meetingId, fileId))
+      .auth(accessToken, { type: 'bearer' })
+      .buffer(true)
+      .parse(collectBinaryBody);
+  }
+
+  function getStorageDir(): string {
+    return app.get(ConfigService).getOrThrow<string>('FILES_STORAGE_DIR');
+  }
+
+  async function countStoredFiles(): Promise<number> {
+    return (await readdir(getStorageDir())).length;
+  }
+
+  async function deleteStoredFile(fileId: string): Promise<void> {
+    const [meetingFile] = await app
+      .get<Database>(DATABASE)
+      .select({ storageName: meetingFiles.storageName })
+      .from(meetingFiles)
+      .where(eq(meetingFiles.id, fileId));
+    await rm(join(getStorageDir(), meetingFile.storageName));
+  }
+
+  async function uploadNotesAndGetId(
+    accessToken: string,
+    meetingId: string,
+  ): Promise<string> {
+    const response = await uploadFile(
+      accessToken,
+      meetingId,
+      NOTES_FILE.content,
+      NOTES_FILE.name,
+      NOTES_FILE.mimeType,
+    ).expect(HttpStatus.CREATED);
+    return response.body.id as string;
   }
 
   it('uploads a file and lists it with name, type, size and upload date', async () => {
@@ -122,5 +195,115 @@ describe('Meeting files (e2e)', () => {
     expect(second.body.id).not.toBe(first.body.id);
     expect(second.body.size).toBe(secondContent.length);
     expect(listed.body).toEqual([first.body, second.body]);
+  });
+
+  describe('download', () => {
+    it('downloads the exact bytes that were uploaded', async () => {
+      const accessToken = await registerUserAndGetToken(app);
+      const meetingId = await createMeetingAndGetId(accessToken);
+      const uploaded = await uploadFile(
+        accessToken,
+        meetingId,
+        REPORT_FILE.content,
+        REPORT_FILE.name,
+        REPORT_FILE.mimeType,
+      ).expect(HttpStatus.CREATED);
+
+      const response = await downloadFile(
+        accessToken,
+        meetingId,
+        uploaded.body.id as string,
+      ).expect(HttpStatus.OK);
+
+      expect(uploaded.body.name).toBe(REPORT_FILE.name);
+      expect(Buffer.compare(response.body as Buffer, REPORT_FILE.content)).toBe(
+        0,
+      );
+      expect(response.headers['content-type']).toBe(REPORT_FILE.mimeType);
+      expect(response.headers['content-length']).toBe(
+        String(REPORT_FILE.content.length),
+      );
+      expect(response.headers['content-disposition']).toMatch(/^attachment;/);
+      expect(response.headers['content-disposition']).toContain(
+        `filename*=UTF-8''${encodeURIComponent(REPORT_FILE.name)}`,
+      );
+      expect(response.headers['x-content-type-options']).toBe(NO_SNIFF);
+    });
+
+    it('returns 404 for an unknown file id', async () => {
+      const accessToken = await registerUserAndGetToken(app);
+      const meetingId = await createMeetingAndGetId(accessToken);
+      const fileId = await uploadNotesAndGetId(accessToken, meetingId);
+      await downloadFile(accessToken, meetingId, fileId).expect(HttpStatus.OK);
+
+      await downloadFile(accessToken, meetingId, randomUUID()).expect(
+        HttpStatus.NOT_FOUND,
+      );
+    });
+
+    // The row survives a lost disk file, so the lookup alone cannot answer 404.
+    it('returns 404 when the stored file is gone from disk', async () => {
+      const accessToken = await registerUserAndGetToken(app);
+      const meetingId = await createMeetingAndGetId(accessToken);
+      const fileId = await uploadNotesAndGetId(accessToken, meetingId);
+      await deleteStoredFile(fileId);
+
+      await downloadFile(accessToken, meetingId, fileId).expect(
+        HttpStatus.NOT_FOUND,
+      );
+    });
+
+    it('rejects a file id that is not a UUID', async () => {
+      const accessToken = await registerUserAndGetToken(app);
+      const meetingId = await createMeetingAndGetId(accessToken);
+
+      await downloadFile(accessToken, meetingId, MALFORMED_FILE_ID).expect(
+        HttpStatus.BAD_REQUEST,
+      );
+    });
+  });
+
+  describe('owner isolation', () => {
+    // 403 would confirm that the meeting exists; 404 reveals nothing.
+    it('returns 404 to another user on upload, list and download', async () => {
+      const ownerToken = await registerUserAndGetToken(app);
+      const otherUserToken = await registerUserAndGetToken(app);
+      const meetingId = await createMeetingAndGetId(ownerToken);
+      const fileId = await uploadNotesAndGetId(ownerToken, meetingId);
+      await downloadFile(ownerToken, meetingId, fileId).expect(HttpStatus.OK);
+      const storedFileCount = await countStoredFiles();
+
+      await uploadFile(
+        otherUserToken,
+        meetingId,
+        NOTES_FILE.content,
+        NOTES_FILE.name,
+        NOTES_FILE.mimeType,
+      ).expect(HttpStatus.NOT_FOUND);
+      await listFiles(otherUserToken, meetingId).expect(HttpStatus.NOT_FOUND);
+      await downloadFile(otherUserToken, meetingId, fileId).expect(
+        HttpStatus.NOT_FOUND,
+      );
+
+      expect(await countStoredFiles()).toBe(storedFileCount);
+      const ownerList = await listFiles(ownerToken, meetingId).expect(
+        HttpStatus.OK,
+      );
+      expect(ownerList.body).toHaveLength(1);
+    });
+
+    it('does not serve a file through a different meeting id', async () => {
+      const accessToken = await registerUserAndGetToken(app);
+      const meetingWithFileId = await createMeetingAndGetId(accessToken);
+      const otherMeetingId = await createMeetingAndGetId(accessToken);
+      const fileId = await uploadNotesAndGetId(accessToken, meetingWithFileId);
+      await downloadFile(accessToken, meetingWithFileId, fileId).expect(
+        HttpStatus.OK,
+      );
+
+      await downloadFile(accessToken, otherMeetingId, fileId).expect(
+        HttpStatus.NOT_FOUND,
+      );
+    });
   });
 });
