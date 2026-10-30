@@ -23,8 +23,9 @@ Next.js Server Actions (the API has no CORS), keep the token in an httpOnly
 signed-in users: it shows their email, the number of meetings, the three
 latest meetings (each linking to its meeting page) and a Sign out button. The
 meeting page `/meetings/[id]` shows the title, date, participants and files,
-and uploads one file at a time through a Next.js Route Handler that streams it
-to the API.
+uploads one file at a time and downloads files through Next.js Route Handlers
+that stream to and from the API. Another user's or an unknown meeting shows
+"Meeting not found".
 
 ## Commands
 
@@ -100,7 +101,7 @@ running than the one before it.
 - **Web end-to-end tests** open Chromium against the app at `E2E_BASE_URL` and
   create their users through the API at `API_URL`. They cover registration,
   login, the protected home page, signing out, and the meeting page with file
-  uploads. They start no server themselves.
+  uploads, downloads, the empty state and the not-found page. They start no server themselves.
 
 ### First run
 

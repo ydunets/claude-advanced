@@ -1,7 +1,5 @@
 import { Card } from '@heroui/react';
-import { linkVariants } from '@heroui/styles';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { formatDateTime, formatFileSize } from '@/lib/format';
@@ -10,9 +8,12 @@ import {
   findMeetingFiles,
   type MeetingFile,
 } from '@/lib/meetings';
-import { ROUTES } from '@/lib/routes';
+import { getMeetingFileRoute, ROUTES } from '@/lib/routes';
 import { findAccessToken } from '@/lib/session';
-import { BrandMark } from '../../brand-mark';
+import {
+  COMPACT_LINK_CLASS_NAME,
+  MeetingPageShell,
+} from './meeting-page-shell';
 import { UploadFileForm } from './upload-file-form';
 
 export const metadata: Metadata = {
@@ -30,7 +31,12 @@ type MeetingContentProps = {
   meetingId: string;
 };
 
+type EmptyFilesProps = {
+  meetingId: string;
+};
+
 type FileListProps = {
+  meetingId: string;
   files: MeetingFile[];
 };
 
@@ -38,19 +44,7 @@ export default function MeetingPage({
   params,
 }: PageProps<'/meetings/[id]'>): React.JSX.Element {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-6 sm:px-8 sm:py-10">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <BrandMark />
-        <Link
-          href={ROUTES.HOME}
-          className={linkVariants().base({
-            className:
-              'inline-flex min-h-9 items-center text-sm underline underline-offset-4',
-          })}
-        >
-          All meetings
-        </Link>
-      </header>
+    <MeetingPageShell>
       <Suspense
         fallback={<p className="mt-12 text-muted">Loading the meeting…</p>}
       >
@@ -58,7 +52,7 @@ export default function MeetingPage({
           <MeetingContent meetingId={id} />
         ))}
       </Suspense>
-    </div>
+    </MeetingPageShell>
   );
 }
 
@@ -113,14 +107,34 @@ async function MeetingContent({
         <h2 id={SECTION_IDS.FILES} className="text-base font-semibold">
           Files
         </h2>
-        <UploadFileForm meetingId={meeting.id} />
-        {files.length > 0 && <FileList files={files} />}
+        {files.length === 0 ? (
+          <EmptyFiles meetingId={meeting.id} />
+        ) : (
+          <>
+            <UploadFileForm meetingId={meeting.id} />
+            <FileList meetingId={meeting.id} files={files} />
+          </>
+        )}
       </section>
     </main>
   );
 }
 
-function FileList({ files }: FileListProps): React.JSX.Element {
+function EmptyFiles({ meetingId }: EmptyFilesProps): React.JSX.Element {
+  return (
+    <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-border p-5 sm:p-6">
+      <div className="flex flex-col gap-1">
+        <p className="font-medium">No files yet.</p>
+        <p className="text-sm text-muted">
+          Upload a recording, a document or notes for this meeting.
+        </p>
+      </div>
+      <UploadFileForm meetingId={meetingId} />
+    </div>
+  );
+}
+
+function FileList({ meetingId, files }: FileListProps): React.JSX.Element {
   return (
     <Card className="p-0 shadow-none">
       <ul className="divide-y divide-border">
@@ -130,15 +144,25 @@ function FileList({ files }: FileListProps): React.JSX.Element {
             className="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
           >
             <span className="font-medium break-all">{file.name}</span>
-            <span className="text-sm text-muted sm:shrink-0">
-              {file.mimeType}
-              {DETAIL_SEPARATOR}
-              {formatFileSize(file.size)}
-              {DETAIL_SEPARATOR}
-              <time dateTime={file.uploadedAt}>
-                {formatDateTime(file.uploadedAt)}
-              </time>
-            </span>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 sm:shrink-0 sm:justify-end">
+              <span className="text-sm text-muted">
+                {file.mimeType}
+                {DETAIL_SEPARATOR}
+                {formatFileSize(file.size)}
+                {DETAIL_SEPARATOR}
+                <time dateTime={file.uploadedAt}>
+                  {formatDateTime(file.uploadedAt)}
+                </time>
+              </span>
+              <a
+                href={getMeetingFileRoute(meetingId, file.id)}
+                download
+                aria-label={`Download ${file.name}`}
+                className={COMPACT_LINK_CLASS_NAME}
+              >
+                Download
+              </a>
+            </div>
           </li>
         ))}
       </ul>

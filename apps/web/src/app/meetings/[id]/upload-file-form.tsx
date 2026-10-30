@@ -3,15 +3,13 @@
 import { Button, Spinner } from '@heroui/react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { HTTP_STATUS } from '@/lib/api';
+import { HTTP_STATUS, MEETING_FILE_FIELD } from '@/lib/api';
 import { getMeetingFilesRoute } from '@/lib/routes';
 
 type UploadFileFormProps = {
   meetingId: string;
 };
 
-// Must match the multipart field the API's FileInterceptor reads.
-const FILE_FIELD = 'file';
 const FILE_INPUT_ID = 'meeting-file';
 
 export function UploadFileForm({
@@ -47,7 +45,7 @@ export function UploadFileForm({
         </label>
         <input
           id={FILE_INPUT_ID}
-          name={FILE_FIELD}
+          name={MEETING_FILE_FIELD}
           type="file"
           required
           disabled={isUploading}

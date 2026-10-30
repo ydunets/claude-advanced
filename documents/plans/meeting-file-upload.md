@@ -153,14 +153,21 @@ Rules for every phase:
 
 ## Phase 3: Download, empty state and "not found" on the meeting page
 
-**Status:** pending
+**Status:** done
 **Milestone:** [Meeting File Upload, Phase 3: Download, empty state and "not found" on the meeting page](https://github.com/ydunets/claude-advanced/milestone/3)
 **Goal:** an owner downloads the original file from the list, a meeting without files invites an upload, and a non-owner sees "not found" for the page and the download address.
 **Touches:** frontend, documentation
 **Depends on:** Phase 1 (`/meetings/[id]`, `UploadFileForm`, `findMeeting`, `findMeetingFiles`, `apps/web/e2e/meeting.spec.ts`), Phase 2 (`GET /meetings/:id/files/:fileId`)
 **Read first:** `apps/web/src/app/meetings/[id]/page.tsx`, `apps/web/src/app/meetings/[id]/files/route.ts`, `apps/web/src/lib/meetings.ts`, `apps/web/e2e/meeting.spec.ts`, Next.js `notFound` docs in `apps/web/node_modules/next/dist/docs/`. Confirm from the docs whether `notFound()` inside an already streaming Suspense boundary returns HTTP 404 or 200 with the not-found UI; the page test asserts the visible not-found content rather than assuming a status.
 **Tests first:** `pnpm --filter web test:e2e meeting`. Expected red: the list has no download link, a meeting without files shows no empty state with an upload action, and another user's meeting address shows an error page instead of the not-found content.
-**Red run:** not yet run.
+**Red run:** 2026-10-30, `pnpm --filter web test:e2e meeting`, with a migrated database and a running `pnpm dev`.
+
+- "a downloaded file is byte-for-byte identical to the uploaded one": red, the file row had no download link.
+- "a meeting without files shows an empty state with an upload action": red, no element held both "No files yet." and the Upload button.
+- "another user gets not found for the meeting page and its download address": first red on its setup (no download link to read); after task 1 it was red on its own assertion, with no "not found" heading for another user's meeting, and turned green with task 2.
+- The docs confirm that `notFound()` inside the streaming Suspense boundary keeps HTTP 200 and renders the not-found UI, so the page test asserts the visible heading; the download Route Handler answers a real 404.
+- Review follow-up, 2026-10-30. The download half of "another user gets not found for the meeting page and its download address" had passed through the handler's generic error branch and was never seen red. The test now also requests a malformed file id, and three forced failures were recorded, each reverted locally and restored: streaming the API error body failed the empty-body check (68 bytes instead of 0); passing the API 400 through failed the malformed file id check (400 instead of 404); treating only 404 as not found on the page failed the malformed meeting id check (no "not found" heading).
+- Visual check and design review, 2026-10-30: `/meetings/[id]` with files, without files (empty state) and for a foreign meeting (not found) at 375, 768 and 1280 px through the Playwright MCP, with no application errors in the console (one hydration warning came from Playwright injecting `caret-color` during a screenshot taken mid-hydration and did not recur after hydration). The `ui-ux-pro-max` empty-state guideline ("helpful message and action") holds; download links carry the file name in their accessible name and are 36 px tall; the not-found page keeps the "All meetings" link.
 
 **Tasks:**
 

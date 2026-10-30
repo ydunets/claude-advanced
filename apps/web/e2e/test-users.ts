@@ -1,12 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import type { Page } from '@playwright/test';
-import { API_ENDPOINTS, getApiUrl } from '../src/lib/api';
+import {
+  API_ENDPOINTS,
+  buildBearerAuthorization,
+  getApiUrl,
+  getMeetingFilesEndpoint,
+  MEETING_FILE_FIELD,
+} from '../src/lib/api';
 import { ROUTES } from '../src/lib/routes';
 
 export const TEST_PASSWORD = 'test-password-123';
 
 type TestUser = { email: string; accessToken: string };
 type TestMeeting = { title: string; date: string };
+type TestFile = { name: string; mimeType: string; buffer: Buffer };
 
 // Every test registers its own user, so the suite needs no database cleanup
 // and can run repeatedly against the same Postgres instance.
@@ -41,6 +48,30 @@ export async function createTestMeeting(
   }
   const { id } = (await response.json()) as { id: string };
   return id;
+}
+
+export async function uploadTestFile(
+  user: TestUser,
+  meetingId: string,
+  file: TestFile,
+): Promise<void> {
+  const formData = new FormData();
+  formData.append(
+    MEETING_FILE_FIELD,
+    new Blob([new Uint8Array(file.buffer)], { type: file.mimeType }),
+    file.name,
+  );
+  const response = await fetch(
+    `${getApiUrl()}${getMeetingFilesEndpoint(meetingId)}`,
+    {
+      method: 'POST',
+      headers: { Authorization: buildBearerAuthorization(user.accessToken) },
+      body: formData,
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`Uploading "${file.name}" failed: ${response.status}`);
+  }
 }
 
 export async function logIn(
