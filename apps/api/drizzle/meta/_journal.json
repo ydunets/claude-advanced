@@ -15,6 +15,13 @@
       "when": 1793179039993,
       "tag": "0001_create_meetings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793369062886,
+      "tag": "0002_create_meeting_files",
+      "breakpoints": true
     }
   ]
 }

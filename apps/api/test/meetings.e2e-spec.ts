@@ -4,14 +4,12 @@ import { HttpStatus, INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
-import { createUniqueEmail } from './test-users.js';
+import { createUniqueEmail, registerUserAndGetToken } from './test-users.js';
 
 const ENDPOINTS = {
-  REGISTER: '/auth/register',
   MEETINGS: '/meetings',
 };
 
-const VALID_PASSWORD = 'correct-horse-battery';
 const MALFORMED_TOKEN = 'not-a-jwt';
 const MALFORMED_MEETING_ID = 'not-a-uuid';
 
@@ -47,16 +45,6 @@ describe('Meetings (e2e)', () => {
   afterAll(async () => {
     await app.close();
   });
-
-  // Goes through the real registration endpoint, so the meetings module is
-  // exercised with exactly the tokens clients receive.
-  async function registerUserAndGetToken(): Promise<string> {
-    const response = await request(app.getHttpServer())
-      .post(ENDPOINTS.REGISTER)
-      .send({ email: createUniqueEmail(), password: VALID_PASSWORD })
-      .expect(HttpStatus.CREATED);
-    return response.body.accessToken as string;
-  }
 
   function createMeeting(accessToken: string, body: object) {
     return request(app.getHttpServer())
@@ -100,7 +88,7 @@ describe('Meetings (e2e)', () => {
     });
 
     it('rejects a token signed with a different secret', async () => {
-      const accessToken = await registerUserAndGetToken();
+      const accessToken = await registerUserAndGetToken(app);
       const [header, payload] = accessToken.split('.');
       const forgedToken = `${header}.${payload}.${Buffer.from('forged').toString('base64url')}`;
 
@@ -110,7 +98,7 @@ describe('Meetings (e2e)', () => {
 
   describe(`POST ${ENDPOINTS.MEETINGS}`, () => {
     it('creates a meeting and returns it with a generated id', async () => {
-      const accessToken = await registerUserAndGetToken();
+      const accessToken = await registerUserAndGetToken(app);
       const meetingInput = buildMeetingInput();
 
       const response = await createMeeting(accessToken, meetingInput).expect(
@@ -126,7 +114,7 @@ describe('Meetings (e2e)', () => {
     });
 
     it('accepts a meeting with no participants', async () => {
-      const accessToken = await registerUserAndGetToken();
+      const accessToken = await registerUserAndGetToken(app);
 
       const response = await createMeeting(
         accessToken,
@@ -145,7 +133,7 @@ describe('Meetings (e2e)', () => {
       ['participants that are not a list', { participants: 'bob@example.com' }],
       ['a participant that is not an email', { participants: ['bob'] }],
     ])('rejects %s', async (_case, overrides) => {
-      const accessToken = await registerUserAndGetToken();
+      const accessToken = await registerUserAndGetToken(app);
 
       await createMeeting(accessToken, {
         ...buildMeetingInput(),
@@ -156,7 +144,7 @@ describe('Meetings (e2e)', () => {
 
   describe(`GET ${ENDPOINTS.MEETINGS}`, () => {
     it('returns an empty list for a user without meetings', async () => {
-      const accessToken = await registerUserAndGetToken();
+      const accessToken = await registerUserAndGetToken(app);
 
       const response = await listMeetings(accessToken).expect(HttpStatus.OK);
 
@@ -164,7 +152,7 @@ describe('Meetings (e2e)', () => {
     });
 
     it('returns every meeting the current user created', async () => {
-      const accessToken = await registerUserAndGetToken();
+      const accessToken = await registerUserAndGetToken(app);
       const planning = await createMeeting(
         accessToken,
         buildMeetingInput({ title: 'Planning' }),
@@ -183,8 +171,8 @@ describe('Meetings (e2e)', () => {
     });
 
     it("does not include other users' meetings", async () => {
-      const ownerToken = await registerUserAndGetToken();
-      const otherUserToken = await registerUserAndGetToken();
+      const ownerToken = await registerUserAndGetToken(app);
+      const otherUserToken = await registerUserAndGetToken(app);
       await createMeeting(otherUserToken, buildMeetingInput()).expect(
         HttpStatus.CREATED,
       );
@@ -197,7 +185,7 @@ describe('Meetings (e2e)', () => {
 
   describe(`GET ${ENDPOINTS.MEETINGS}/:id`, () => {
     it('returns the meeting with the given id', async () => {
-      const accessToken = await registerUserAndGetToken();
+      const accessToken = await registerUserAndGetToken(app);
       const created = await createMeeting(
         accessToken,
         buildMeetingInput(),
@@ -211,7 +199,7 @@ describe('Meetings (e2e)', () => {
     });
 
     it('returns 404 when no meeting has the given id', async () => {
-      const accessToken = await registerUserAndGetToken();
+      const accessToken = await registerUserAndGetToken(app);
       // An existing meeting proves the route works, so the 404 below comes
       // from the lookup and not from a missing route.
       await createMeeting(accessToken, buildMeetingInput()).expect(
@@ -223,8 +211,8 @@ describe('Meetings (e2e)', () => {
 
     // Answering 403 would confirm that the id exists; 404 reveals nothing.
     it("returns 404 for another user's meeting", async () => {
-      const ownerToken = await registerUserAndGetToken();
-      const otherUserToken = await registerUserAndGetToken();
+      const ownerToken = await registerUserAndGetToken(app);
+      const otherUserToken = await registerUserAndGetToken(app);
       const created = await createMeeting(
         ownerToken,
         buildMeetingInput(),
@@ -236,7 +224,7 @@ describe('Meetings (e2e)', () => {
     });
 
     it('rejects an id that is not a UUID', async () => {
-      const accessToken = await registerUserAndGetToken();
+      const accessToken = await registerUserAndGetToken(app);
 
       await getMeeting(accessToken, MALFORMED_MEETING_ID).expect(
         HttpStatus.BAD_REQUEST,
