@@ -10,6 +10,7 @@ import {
 } from '@/lib/meetings';
 import { getMeetingFileRoute, ROUTES } from '@/lib/routes';
 import { findAccessToken } from '@/lib/session';
+import { getMaxUploadSizeBytes } from '@/lib/upload-limits';
 import {
   COMPACT_LINK_CLASS_NAME,
   MeetingPageShell,
@@ -33,6 +34,7 @@ type MeetingContentProps = {
 
 type EmptyFilesProps = {
   meetingId: string;
+  maxUploadSizeBytes: number;
 };
 
 type FileListProps = {
@@ -70,6 +72,7 @@ async function MeetingContent({
   if (!meeting || !files) {
     redirect(ROUTES.LOGIN);
   }
+  const maxUploadSizeBytes = getMaxUploadSizeBytes();
 
   return (
     <main className="mt-12 flex flex-col gap-10">
@@ -108,10 +111,16 @@ async function MeetingContent({
           Files
         </h2>
         {files.length === 0 ? (
-          <EmptyFiles meetingId={meeting.id} />
+          <EmptyFiles
+            meetingId={meeting.id}
+            maxUploadSizeBytes={maxUploadSizeBytes}
+          />
         ) : (
           <>
-            <UploadFileForm meetingId={meeting.id} />
+            <UploadFileForm
+              meetingId={meeting.id}
+              maxUploadSizeBytes={maxUploadSizeBytes}
+            />
             <FileList meetingId={meeting.id} files={files} />
           </>
         )}
@@ -120,7 +129,10 @@ async function MeetingContent({
   );
 }
 
-function EmptyFiles({ meetingId }: EmptyFilesProps): React.JSX.Element {
+function EmptyFiles({
+  meetingId,
+  maxUploadSizeBytes,
+}: EmptyFilesProps): React.JSX.Element {
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-border p-5 sm:p-6">
       <div className="flex flex-col gap-1">
@@ -129,7 +141,10 @@ function EmptyFiles({ meetingId }: EmptyFilesProps): React.JSX.Element {
           Upload a recording, a document or notes for this meeting.
         </p>
       </div>
-      <UploadFileForm meetingId={meetingId} />
+      <UploadFileForm
+        meetingId={meetingId}
+        maxUploadSizeBytes={maxUploadSizeBytes}
+      />
     </div>
   );
 }

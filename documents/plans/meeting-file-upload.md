@@ -245,14 +245,22 @@ Rules for every phase:
 
 ## Phase 5: Upload progress and error messages on the meeting page
 
-**Status:** pending
+**Status:** done
 **Milestone:** [Meeting File Upload, Phase 5: Upload progress and error messages on the meeting page](https://github.com/ydunets/claude-advanced/milestone/5)
 **Goal:** the owner sees upload progress, and a clear message for an oversized file, a disallowed format and a lost connection, while the file list stays unchanged.
 **Touches:** frontend, documentation
 **Depends on:** Phase 1 (`UploadFileForm`, Route Handler `POST /meetings/[id]/files`, `apps/web/e2e/meeting.spec.ts`), Phase 4 (`POST /meetings/:id/files` errors 413 and 415)
 **Read first:** `apps/web/src/app/meetings/[id]/upload-file-form.tsx`, `apps/web/src/app/meetings/[id]/files/route.ts`, `apps/web/src/app/(auth)/credentials-form.tsx` (form error display), `apps/web/e2e/meeting.spec.ts`, the `heroui-react` skill for progress and alert components
 **Tests first:** `pnpm --filter web test:e2e meeting`. Expected red: no progress indicator appears during an upload, and no message appears for an oversized file, a disallowed format or an aborted request.
-**Red run:** not yet run.
+**Red run:** 2026-10-30, `pnpm --filter web test:e2e meeting`, with a migrated database, a running `pnpm dev` and `MAX_UPLOAD_SIZE_BYTES` in `apps/web/.env`.
+
+- "an upload shows progress until the file is listed": red, no progressbar named "Upload progress" appeared while the request was held through `page.route`.
+- "a file over 100 MB is rejected with the limit and the list is unchanged": red, no alert stated "100 MB"; the form sent the file, and the API's 413 was not shown.
+- "a disallowed format is rejected with the allowed formats and the list is unchanged": red, no alert appeared for the API's 415.
+- "a lost connection shows an error and lists no incomplete file": red, no alert appeared after `route.abort('connectionreset')`.
+- The oversized test uses a sparse file of `MAX_UPLOAD_SIZE_BYTES + 1` bytes and records every POST to the upload Route Handler, so it proves that the browser refused the file before sending it. A direct request of the same size to the Route Handler answered 413 with the API's message, confirming that the handler relays it; the upload Route Handler therefore needed no change. During the red run the test read `MAX_UPLOAD_SIZE_BYTES` itself, and it switched to `getMaxUploadSizeBytes` from `src/lib/upload-limits.ts` once that module existed.
+- Review follow-up, 2026-10-30. The progress bar disappeared on `loadend`, before `router.refresh()` listed the file, and the progress test missed it because it waited for the row first. The test now reads the row count once, without retrying, the moment the bar disappears; it was red in three of three runs ("Expected: 1, Received: 0"). Clearing the progress inside the same transition as `router.refresh()` made it green in five of five runs. The oversized test now asserts the PRD's literal "100 MB" instead of a value derived from the environment.
+- Visual check and design review, 2026-10-30: `/meetings/[id]` in the progress, interrupted, oversized and disallowed states at 375, 768 and 1280 px through the Playwright MCP. The console held only the browser's network errors for the induced connection reset and 415, with no application errors. The `ui-ux-pro-max` "Progress Indicators" guideline holds; its "Error Placement" guideline led to `aria-invalid` and `aria-describedby` linking the file input to the alert, which clears when another file is chosen.
 
 **Tasks:**
 
