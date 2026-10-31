@@ -9,6 +9,10 @@ export class RegisterDto {
   @IsString()
   @MinLength(MIN_PASSWORD_LENGTH)
   password: string;
+
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 }
 
 // No length rule here: tightening the registration policy later must not turn

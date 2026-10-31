@@ -1,10 +1,25 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { ACCESS_TOKEN_COOKIE } from '../src/lib/session';
-import { createTestUser, TEST_PASSWORD } from './test-users';
+import { getApiUrl, API_ENDPOINTS } from '../src/lib/api';
+import {
+  createTestUser,
+  TEST_NAME,
+  TEST_NAME_INITIALS,
+  TEST_PASSWORD,
+} from './test-users';
 
-async function submitRegistration(page: Page, email: string): Promise<void> {
+function createUniqueEmail(): string {
+  return `e2e-${randomUUID()}@example.com`;
+}
+
+async function submitRegistration(
+  page: Page,
+  email: string,
+  name: string,
+): Promise<void> {
   await page.goto('/register');
+  await page.getByLabel('Name', { exact: true }).fill(name);
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
   await page.getByRole('button', { name: 'Create account' }).click();
@@ -25,14 +40,38 @@ test('a new account is signed in and lands on the home page', async ({
   page,
   context,
 }) => {
-  const email = `e2e-${randomUUID()}@example.com`;
+  const email = createUniqueEmail();
 
-  await submitRegistration(page, email);
+  await submitRegistration(page, email, TEST_NAME);
 
   await expect(page).toHaveURL('/');
-  await expect(page.getByText(email)).toBeVisible();
+  await expect(page.getByRole('link', { name: TEST_NAME })).toBeVisible();
+  await expect(
+    page.getByText(TEST_NAME_INITIALS, { exact: true }),
+  ).toBeVisible();
   const cookies = await context.cookies();
   expect(cookies.map(({ name }) => name)).toEqual([ACCESS_TOKEN_COOKIE]);
+});
+
+test('registration without a name shows a required error and creates no account', async ({
+  page,
+}) => {
+  const email = createUniqueEmail();
+
+  await submitRegistration(page, email, '');
+
+  await expect(page.getByLabel('Name', { exact: true })).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
+  await expect(page).toHaveURL('/register');
+  // The email is still free, so the refused form stored nothing.
+  const response = await fetch(`${getApiUrl()}${API_ENDPOINTS.REGISTER}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password: TEST_PASSWORD, name: TEST_NAME }),
+  });
+  expect(response.ok).toBe(true);
 });
 
 test('a registered email shows a field error and stays on the page', async ({
@@ -40,7 +79,7 @@ test('a registered email shows a field error and stays on the page', async ({
 }) => {
   const user = await createTestUser();
 
-  await submitRegistration(page, user.email);
+  await submitRegistration(page, user.email, user.name);
 
   await expect(
     page.getByText('An account with this email already exists.'),

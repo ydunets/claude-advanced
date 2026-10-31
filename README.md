@@ -7,9 +7,10 @@ pnpm workspace with two applications.
 | `apps/web` | Next.js | 3000         |
 | `apps/api` | NestJS  | 4000         |
 
-The API exposes `POST /auth/register` and `POST /auth/login`; both take
-`{ email, password }` and return `{ accessToken }` (a JWT). With
-`Authorization: Bearer <accessToken>`, `POST /meetings`, `GET /meetings` and
+The API exposes `POST /auth/register`, which takes `{ name, email, password }`,
+and `POST /auth/login`, which takes `{ email, password }`; both return
+`{ accessToken }` (a JWT). With `Authorization: Bearer <accessToken>`,
+`GET /profile` returns the user's `{ name, email }`, and `POST /meetings`, `GET /meetings` and
 `GET /meetings/:id` manage the current user's meetings, and
 `POST /meetings/:id/files` (multipart field `file`), `GET /meetings/:id/files`
 and `GET /meetings/:id/files/:fileId` upload, list and download a meeting's
@@ -22,7 +23,8 @@ message that states the limit or the allowed formats. The API follows CQRS
 The web app has `/register` and `/login` pages, which call the API from
 Next.js Server Actions (the API has no CORS), keep the token in an httpOnly
 `accessToken` cookie and redirect to `/`. The home page `/` is only for
-signed-in users: it shows their email, the number of meetings, the three
+signed-in users: it shows their name next to an initials placeholder, linked
+to the profile page `/profile` (name, email and placeholder), the number of meetings, the three
 latest meetings (each linking to its meeting page) and a Sign out button. The
 meeting page `/meetings/[id]` shows the title, date, participants and files,
 uploads one file at a time and downloads files through Next.js Route Handlers
@@ -99,12 +101,12 @@ running than the one before it.
 - **API end-to-end tests** boot `AppModule` inside the test process and send
   HTTP requests with Supertest, so the API server does not need to run. They
   use the real database from `apps/api/.env` and cover registration, login,
-  validation, the meetings routes and the meeting files routes, including the
+  validation, the profile route, the meetings routes and the meeting files routes, including the
   size limit, the format check and an aborted upload. Uploaded test
   files stay in `FILES_STORAGE_DIR`.
 - **Web end-to-end tests** open Chromium against the app at `E2E_BASE_URL` and
   create their users through the API at `API_URL`. They cover registration,
-  login, the protected home page, signing out, and the meeting page with file
+  login, the protected home and profile pages, signing out, and the meeting page with file
   uploads (progress, the size limit, a disallowed format and a lost connection), downloads, the empty state and the not-found page. They start no server themselves.
 
 ### First run

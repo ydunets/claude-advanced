@@ -12,6 +12,7 @@ export class CreateUserCommand extends Command<User> {
   constructor(
     readonly email: string,
     readonly passwordHash: string,
+    readonly name: string,
   ) {
     super();
   }

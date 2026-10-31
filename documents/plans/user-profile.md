@@ -71,13 +71,29 @@ Rules for every phase:
 
 ## Phase 1: Name at registration, shown on home and profile (Tracer Bullet)
 
-**Status:** pending
+**Status:** done
 **Milestone:** [User Profile, Phase 1: Name at registration, shown on home and profile](https://github.com/ydunets/claude-advanced/milestone/6)
 **Goal:** a visitor registers with a name, sees that name next to an initials placeholder on the home page, and follows a link to a profile page that shows the name and the email; existing accounts show the part of their email before "@".
 **Touches:** database, backend, frontend, documentation
 **Read first:** `apps/api/src/database/schema.ts`, `apps/api/drizzle/0002_create_meeting_files.sql`, `apps/api/src/users/` (all files), `apps/api/src/auth/` (`auth.controller.ts`, `dto/credentials.dto.ts`, `commands/register.handler.ts`, `auth-token.service.ts`), `apps/api/src/meetings/meetings.module.ts` and `meetings.controller.ts` (module that imports `AuthModule` for the guard), `apps/api/test/auth.e2e-spec.ts`, `apps/api/test/test-users.ts`, `apps/web/src/app/(auth)/` (all files), `apps/web/src/app/page.tsx`, `apps/web/src/app/meetings/[id]/meeting-page-shell.tsx`, `apps/web/src/lib/meetings.ts`, `apps/web/src/lib/session.ts`, `apps/web/src/proxy.ts`, `apps/web/e2e/home.spec.ts`, `apps/web/e2e/register.spec.ts`, `apps/web/e2e/test-users.ts`, the HeroUI `Avatar` docs through the `heroui-react` skill.
 **Tests first:** `pnpm --filter api test:e2e auth profile` and `pnpm --filter web test:e2e home register profile`. Expected red: the API accepts a registration without a name (201 instead of 400, because `whitelist` strips the unknown field and nothing requires it) and answers 404 for the missing `GET /profile`; the web home page shows the email and no name or initials, the registration page has no "Name" field, and `/profile` renders the Next.js 404 instead of redirecting a signed-out visitor to `/login`.
-**Red run:** not yet run.
+**Red run:** 2026-10-31, against the running `pnpm dev` and the dev database before migration `0003`. Every new test failed on an assertion:
+
+- `pnpm --filter api test:e2e auth profile` (4 failed, 14 passed):
+  - `auth.e2e-spec.ts` "rejects a registration without a name": expected 400, got 201.
+  - `auth.e2e-spec.ts` "rejects an empty name" (added case of the `it.each` table): expected 400, got 201.
+  - `profile.e2e-spec.ts` "returns the signed-in user's name and email": expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects a request without a token": expected 401, got 404.
+- `pnpm --filter web test:e2e home register profile login` (7 failed, 7 passed):
+  - `register.spec.ts` "registration without a name shows a required error and creates no account": no `Name` field (`locator.fill` timeout).
+  - `register.spec.ts` "a new account is signed in and lands on the home page" (extended with the name): no `Name` field.
+  - `register.spec.ts` "a registered email shows a field error and stays on the page" (existing, now fills the name): no `Name` field.
+  - `home.spec.ts` "a new user sees their name and initials and no email": no link named after the user.
+  - `profile.spec.ts` "the home page links to a profile with the name, the email and the initials": no link named after the user (`locator.click` timeout).
+  - `profile.spec.ts` "the profile page sends a signed-out visitor to the login page": the URL stayed `/profile` (Next.js 404) instead of `/login`.
+  - `login.spec.ts` "valid credentials store the token and open the home page" (existing, now asserts the name instead of the email, which the home page no longer shows): no link named after the user.
+
+**SQL check:** 2026-10-31, on the dev database right after `pnpm --filter api db:migrate` applied `0003_add_user_name.sql` and before any green test run: `select count(*), count(*) filter (where name is distinct from split_part(email, '@', 1)) from users` returned `2483|0` (2483 rows created before this feature, none without the email prefix as its name), and `information_schema.columns` reports `users.name` as not nullable.
 
 **Tasks:**
 

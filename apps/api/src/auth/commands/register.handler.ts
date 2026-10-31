@@ -15,10 +15,14 @@ export class RegisterHandler implements ICommandHandler<RegisterCommand> {
     private readonly authTokenService: AuthTokenService,
   ) {}
 
-  async execute({ email, password }: RegisterCommand): Promise<AuthToken> {
+  async execute({
+    email,
+    password,
+    name,
+  }: RegisterCommand): Promise<AuthToken> {
     const passwordHash = await hashPassword(password);
     const user = await this.commandBus
-      .execute(new CreateUserCommand(email, passwordHash))
+      .execute(new CreateUserCommand(email, passwordHash, name))
       .catch((error: unknown) => {
         if (error instanceof EmailAlreadyRegisteredError) {
           throw new ConflictException(error.message);

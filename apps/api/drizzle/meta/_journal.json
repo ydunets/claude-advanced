@@ -22,6 +22,13 @@
       "when": 1793369062886,
       "tag": "0002_create_meeting_files",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793450661238,
+      "tag": "0003_add_user_name",
+      "breakpoints": true
     }
   ]
 }

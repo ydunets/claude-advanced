@@ -5,6 +5,7 @@ import type { App } from 'supertest/types.js';
 
 const REGISTER_ENDPOINT = '/auth/register';
 const TEST_PASSWORD = 'correct-horse-battery';
+const TEST_NAME = 'Ada Lovelace';
 
 // Every test uses its own email, so suites need no database cleanup and can
 // run repeatedly against the same Postgres instance.
@@ -19,7 +20,11 @@ export async function registerUserAndGetToken(
 ): Promise<string> {
   const response = await request(app.getHttpServer())
     .post(REGISTER_ENDPOINT)
-    .send({ email: createUniqueEmail(), password: TEST_PASSWORD })
+    .send({
+      email: createUniqueEmail(),
+      password: TEST_PASSWORD,
+      name: TEST_NAME,
+    })
     .expect(HttpStatus.CREATED);
   return response.body.accessToken as string;
 }

@@ -10,8 +10,10 @@ import {
 import { ROUTES } from '../src/lib/routes';
 
 export const TEST_PASSWORD = 'test-password-123';
+export const TEST_NAME = 'Ada Lovelace';
+export const TEST_NAME_INITIALS = 'AL';
 
-type TestUser = { email: string; accessToken: string };
+type TestUser = { name: string; email: string; accessToken: string };
 type TestMeeting = { title: string; date: string };
 type TestFile = { name: string; mimeType: string; buffer: Buffer };
 
@@ -22,13 +24,13 @@ export async function createTestUser(): Promise<TestUser> {
   const response = await fetch(`${getApiUrl()}${API_ENDPOINTS.REGISTER}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password: TEST_PASSWORD }),
+    body: JSON.stringify({ email, password: TEST_PASSWORD, name: TEST_NAME }),
   });
   if (!response.ok) {
     throw new Error(`Registering ${email} failed with ${response.status}`);
   }
   const { accessToken } = (await response.json()) as { accessToken: string };
-  return { email, accessToken };
+  return { name: TEST_NAME, email, accessToken };
 }
 
 export async function createTestMeeting(

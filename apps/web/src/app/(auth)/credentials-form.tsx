@@ -26,9 +26,11 @@ type CredentialsFormProps = {
   passwordAutoComplete: 'new-password' | 'current-password';
   // Registration only: login must accept any existing password, see LoginDto.
   passwordMinLength?: number;
+  hasNameField?: boolean;
 };
 
 const INITIAL_STATE: CredentialsState = {
+  name: '',
   email: '',
   fieldErrors: {},
   formError: null,
@@ -41,6 +43,7 @@ export function CredentialsForm({
   errorTitle,
   passwordAutoComplete,
   passwordMinLength,
+  hasNameField = false,
 }: CredentialsFormProps): React.JSX.Element {
   const [state, formAction, isPending] = useActionState(action, INITIAL_STATE);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -67,6 +70,21 @@ export function CredentialsForm({
             <Alert.Description>{state.formError}</Alert.Description>
           </Alert.Content>
         </Alert>
+      )}
+
+      {hasNameField && (
+        <TextField
+          key={`name-${state.name}`}
+          defaultValue={state.name}
+          isRequired
+          fullWidth
+          name="name"
+          autoComplete="name"
+        >
+          <Label>Name</Label>
+          <Input placeholder="Ada Lovelace" />
+          <FieldError />
+        </TextField>
       )}
 
       {/* The key remounts the field so React's post-action form reset keeps the email. */}

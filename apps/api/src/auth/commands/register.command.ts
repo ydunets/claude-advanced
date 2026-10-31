@@ -5,6 +5,7 @@ export class RegisterCommand extends Command<AuthToken> {
   constructor(
     readonly email: string,
     readonly password: string,
+    readonly name: string,
   ) {
     super();
   }

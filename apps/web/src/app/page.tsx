@@ -6,10 +6,12 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { formatCount, formatDateTime } from '@/lib/format';
 import { findMeetings, type Meeting } from '@/lib/meetings';
+import { findProfile } from '@/lib/profile';
 import { getMeetingRoute, ROUTES } from '@/lib/routes';
-import { findAccessToken, getTokenEmail } from '@/lib/session';
+import { findAccessToken } from '@/lib/session';
 import { signOut } from './(auth)/actions';
 import { BrandMark } from './brand-mark';
+import { UserAvatar } from './user-avatar';
 
 const LATEST_MEETINGS_COUNT = 3;
 
@@ -37,8 +39,11 @@ async function HomeContent(): Promise<React.JSX.Element> {
   if (!accessToken) {
     redirect(ROUTES.LOGIN);
   }
-  const meetings = await findMeetings(accessToken);
-  if (!meetings) {
+  const [meetings, profile] = await Promise.all([
+    findMeetings(accessToken),
+    findProfile(accessToken),
+  ]);
+  if (!meetings || !profile) {
     redirect(ROUTES.LOGIN);
   }
   const latestMeetings = getLatestMeetings(meetings);
@@ -48,12 +53,15 @@ async function HomeContent(): Promise<React.JSX.Element> {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <BrandMark />
         <div className="flex items-center gap-3">
-          <p className="text-sm text-muted">
-            Signed in as{' '}
-            <span className="font-medium break-all text-foreground">
-              {getTokenEmail(accessToken)}
-            </span>
-          </p>
+          <Link
+            href={ROUTES.PROFILE}
+            className={linkVariants().base({
+              className: 'flex min-w-0 items-center gap-2 text-sm font-medium',
+            })}
+          >
+            <UserAvatar name={profile.name} size="sm" />
+            <span className="break-words">{profile.name}</span>
+          </Link>
           <form action={signOut}>
             <Button type="submit" variant="secondary" size="sm">
               Sign out
