@@ -40,14 +40,15 @@ const RECORDING_FILE: UploadedFile = {
 };
 const RECORDING_SIZE_LABEL = `${RECORDING_SIZE_MB} MB`;
 
-// The browser reports no type for an unknown extension and sends the part as
-// application/octet-stream, which the API stores unchanged.
-const UNTYPED_FILE: UploadedFile = {
-  name: 'transcript.vtt-draft',
-  mimeType: '',
+// A browser that cannot type a file sends the part as application/octet-stream,
+// which the API stores unchanged. Playwright infers a type from every allowed
+// extension, so the fixture sends that fallback type explicitly.
+const OCTET_STREAM_TYPE = 'application/octet-stream';
+const OCTET_STREAM_FILE: UploadedFile = {
+  name: 'transcript.md',
+  mimeType: OCTET_STREAM_TYPE,
   buffer: Buffer.from('00:00 Welcome'),
 };
-const UNTYPED_FILE_TYPE_LABEL = 'application/octet-stream';
 
 const REPORT_FILE: UploadedFile = {
   name: 'Протокол встречи.pdf',
@@ -178,12 +179,12 @@ test('a file without a type is listed as application/octet-stream', async ({
   const meetingId = await createTestMeeting(user, MEETING);
   await logInAndOpenMeeting(page, user.email, meetingId);
 
-  await uploadFile(page, UNTYPED_FILE);
+  await uploadFile(page, OCTET_STREAM_FILE);
 
   const rows = getFileRows(page);
   await expect(rows).toHaveCount(1);
-  await expect(rows.first()).toContainText(UNTYPED_FILE.name);
-  await expect(rows.first()).toContainText(UNTYPED_FILE_TYPE_LABEL);
+  await expect(rows.first()).toContainText(OCTET_STREAM_FILE.name);
+  await expect(rows.first()).toContainText(OCTET_STREAM_TYPE);
 });
 
 test('a downloaded file is byte-for-byte identical to the uploaded one', async ({

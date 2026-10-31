@@ -14,7 +14,9 @@ The API exposes `POST /auth/register` and `POST /auth/login`; both take
 `POST /meetings/:id/files` (multipart field `file`), `GET /meetings/:id/files`
 and `GET /meetings/:id/files/:fileId` upload, list and download a meeting's
 files. Uploaded files are stored on the API
-server's disk under `FILES_STORAGE_DIR`. The API follows CQRS
+server's disk under `FILES_STORAGE_DIR`. An upload over `MAX_FILE_SIZE_BYTES`
+answers 413 and a format outside the allowed list answers 415, each with a
+message that states the limit or the allowed formats. The API follows CQRS
 (`@nestjs/cqrs`); see `apps/api/CLAUDE.md`.
 
 The web app has `/register` and `/login` pages, which call the API from
@@ -60,11 +62,11 @@ through the `prepare` script.
 All configuration lives in git-ignored env files; neither the code nor
 `compose.yaml` carries default values, and a missing variable stops startup.
 
-| File            | Read by                                                 | Variables                                                                           |
-| --------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `.env`          | Docker Compose                                          | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`                |
-| `apps/api/.env` | The API (`@nestjs/config`) and `drizzle-kit` (`dotenv`) | `PORT`, `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN_SECONDS`, `FILES_STORAGE_DIR` |
-| `apps/web/.env` | The Next.js server and the Playwright suite             | `API_URL`, `E2E_BASE_URL`                                                           |
+| File            | Read by                                                 | Variables                                                                                                  |
+| --------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `.env`          | Docker Compose                                          | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`                                       |
+| `apps/api/.env` | The API (`@nestjs/config`) and `drizzle-kit` (`dotenv`) | `PORT`, `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN_SECONDS`, `FILES_STORAGE_DIR`, `MAX_FILE_SIZE_BYTES` |
+| `apps/web/.env` | The Next.js server and the Playwright suite             | `API_URL`, `E2E_BASE_URL`                                                                                  |
 
 Create each from its `.env.example` and keep `DATABASE_URL` consistent with
 the Postgres values.
@@ -91,12 +93,14 @@ running than the one before it.
 | API end to end (Vitest)     | `pnpm --filter api test:e2e` | Postgres running and migrated, `apps/api/.env`                                | `apps/api/test/`            |
 | Web end to end (Playwright) | `pnpm --filter web test:e2e` | Postgres, the running web app and API (`pnpm dev`), `apps/web/.env`, Chromium | `apps/web/e2e/`             |
 
-- **Unit tests** cover pure logic such as password hashing. They need no
+- **Unit tests** cover pure logic such as password hashing and the allowed
+  upload formats. They need no
   database or server.
 - **API end-to-end tests** boot `AppModule` inside the test process and send
   HTTP requests with Supertest, so the API server does not need to run. They
   use the real database from `apps/api/.env` and cover registration, login,
-  validation, the meetings routes and the meeting files routes. Uploaded test
+  validation, the meetings routes and the meeting files routes, including the
+  size limit, the format check and an aborted upload. Uploaded test
   files stay in `FILES_STORAGE_DIR`.
 - **Web end-to-end tests** open Chromium against the app at `E2E_BASE_URL` and
   create their users through the API at `API_URL`. They cover registration,
