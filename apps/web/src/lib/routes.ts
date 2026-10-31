@@ -11,3 +11,7 @@ export function getMeetingRoute(meetingId: string): string {
 export function getMeetingFilesRoute(meetingId: string): string {
   return `${getMeetingRoute(meetingId)}/files`;
 }
+
+export function getMeetingFileRoute(meetingId: string, fileId: string): string {
+  return `${getMeetingFilesRoute(meetingId)}/${fileId}`;
+}
