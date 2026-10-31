@@ -12,6 +12,18 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop.js\"",
+            "timeout": 86400,
+            "statusMessage": "Ralph Loop: checking the milestone"
+          }
+        ]
+      }
     ]
   }
 }

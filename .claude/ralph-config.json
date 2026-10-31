@@ -1,0 +1,6 @@
+{
+  "milestone": "User Profile, Phase 1: Name at registration, shown on home and profile",
+  "branch": "feat/user-profile",
+  "prompt": "Read .claude/ralph.md and follow its rules. Your task is GitHub issue #{issue} in the milestone \"{milestone}\", on the branch \"{branch}\".",
+  "maxBudgetUsd": 10
+}
