@@ -3,6 +3,7 @@ import {
   createTestMeeting,
   createTestUser,
   logIn,
+  TEST_NAME_INITIALS,
   TEST_PASSWORD,
 } from './test-users';
 
@@ -14,14 +15,18 @@ test('the home page sends a signed-out visitor to the login page', async ({
   await expect(page).toHaveURL('/login');
 });
 
-test('a user without meetings sees their email and an empty state', async ({
+test('a new user sees their name and initials and no email', async ({
   page,
 }) => {
   const user = await createTestUser();
 
   await logIn(page, user.email, TEST_PASSWORD);
 
-  await expect(page.getByText(user.email)).toBeVisible();
+  await expect(page.getByRole('link', { name: user.name })).toBeVisible();
+  await expect(
+    page.getByText(TEST_NAME_INITIALS, { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(user.email)).toHaveCount(0);
   await expect(
     page.getByRole('heading', { level: 1, name: 'Your meetings' }),
   ).toBeVisible();

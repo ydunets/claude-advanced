@@ -14,10 +14,14 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 
   // Relies on the unique index instead of a prior lookup, so two concurrent
   // registrations of one email cannot both succeed.
-  async execute({ email, passwordHash }: CreateUserCommand): Promise<User> {
+  async execute({
+    email,
+    passwordHash,
+    name,
+  }: CreateUserCommand): Promise<User> {
     const [createdUser] = await this.database
       .insert(users)
-      .values({ email: normalizeEmail(email), passwordHash })
+      .values({ email: normalizeEmail(email), passwordHash, name })
       .onConflictDoNothing()
       .returning();
     if (!createdUser) {

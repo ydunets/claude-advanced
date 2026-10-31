@@ -13,6 +13,7 @@ const ENDPOINTS = {
 const VALID_PASSWORD = 'correct-horse-battery';
 const WRONG_PASSWORD = 'wrong-horse-battery';
 const TOO_SHORT_PASSWORD = 'short';
+const VALID_NAME = 'Ada Lovelace';
 const JWT_SEGMENT_COUNT = 3;
 
 type JwtPayload = { sub: string; email: string; exp: number };
@@ -46,7 +47,7 @@ describe('Auth (e2e)', () => {
   function registerUser(email: string, password: string) {
     return request(app.getHttpServer())
       .post(ENDPOINTS.REGISTER)
-      .send({ email, password });
+      .send({ email, password, name: VALID_NAME });
   }
 
   function loginUser(email: string, password: string) {
@@ -97,17 +98,37 @@ describe('Auth (e2e)', () => {
       );
     });
 
+    it('rejects a registration without a name', async () => {
+      const email = createUniqueEmail();
+
+      await request(app.getHttpServer())
+        .post(ENDPOINTS.REGISTER)
+        .send({ email, password: VALID_PASSWORD })
+        .expect(HttpStatus.BAD_REQUEST);
+
+      // The email is still free, so the refused request stored nothing.
+      await registerUser(email, VALID_PASSWORD).expect(HttpStatus.CREATED);
+    });
+
     it.each([
       [
         'a malformed email',
-        { email: 'not-an-email', password: VALID_PASSWORD },
+        { email: 'not-an-email', password: VALID_PASSWORD, name: VALID_NAME },
       ],
-      ['a missing email', { password: VALID_PASSWORD }],
+      ['a missing email', { password: VALID_PASSWORD, name: VALID_NAME }],
       [
         'a password that is too short',
-        { email: createUniqueEmail(), password: TOO_SHORT_PASSWORD },
+        {
+          email: createUniqueEmail(),
+          password: TOO_SHORT_PASSWORD,
+          name: VALID_NAME,
+        },
       ],
-      ['a missing password', { email: createUniqueEmail() }],
+      ['a missing password', { email: createUniqueEmail(), name: VALID_NAME }],
+      [
+        'an empty name',
+        { email: createUniqueEmail(), password: VALID_PASSWORD, name: '' },
+      ],
     ])('rejects %s', async (_case, body) => {
       await request(app.getHttpServer())
         .post(ENDPOINTS.REGISTER)

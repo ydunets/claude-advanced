@@ -2,6 +2,7 @@ export const API_ENDPOINTS = {
   REGISTER: '/auth/register',
   LOGIN: '/auth/login',
   MEETINGS: '/meetings',
+  PROFILE: '/profile',
 } as const;
 
 // The multipart field the API's FileInterceptor reads.
@@ -48,4 +49,28 @@ export function isMissingResourceStatus(status: number): boolean {
 
 export function buildBearerAuthorization(accessToken: string): string {
   return `Bearer ${accessToken}`;
+}
+
+export function fetchFromApi(
+  accessToken: string,
+  endpoint: string,
+): Promise<Response> {
+  return fetch(`${getApiUrl()}${endpoint}`, {
+    headers: { Authorization: buildBearerAuthorization(accessToken) },
+  });
+}
+
+// Resolves to null when the API rejects the token (expired or forged), so the
+// caller can send the visitor back to the login page.
+export async function findApiJson<T>(
+  response: Response,
+  endpoint: string,
+): Promise<T | null> {
+  if (response.status === HTTP_STATUS.UNAUTHORIZED) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`Loading ${endpoint} failed with ${response.status}`);
+  }
+  return (await response.json()) as T;
 }

@@ -27,6 +27,7 @@ export default function RegisterPage(): React.JSX.Element {
         errorTitle="Could not create your account"
         passwordAutoComplete="new-password"
         passwordMinLength={MIN_PASSWORD_LENGTH}
+        hasNameField
       />
     </AuthCard>
   );

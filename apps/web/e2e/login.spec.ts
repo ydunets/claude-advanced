@@ -22,7 +22,7 @@ test('valid credentials store the token and open the home page', async ({
   await logIn(page, user.email, TEST_PASSWORD);
 
   await expect(page).toHaveURL('/');
-  await expect(page.getByText(user.email)).toBeVisible();
+  await expect(page.getByRole('link', { name: user.name })).toBeVisible();
   const cookies = await context.cookies();
   const token = cookies.find(({ name }) => name === ACCESS_TOKEN_COOKIE);
   expect(token?.httpOnly).toBe(true);

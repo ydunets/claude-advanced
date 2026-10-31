@@ -16,5 +16,5 @@ export function proxy(request: NextRequest): NextResponse {
 // `/meetings/:id` matches one segment only, so the upload Route Handler stays
 // outside: the proxy buffers request bodies and truncates them at 10 MB.
 export const config = {
-  matcher: ['/', '/meetings/:id'],
+  matcher: ['/', '/meetings/:id', '/profile'],
 };

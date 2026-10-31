@@ -15,7 +15,7 @@ export class AuthController {
   @Post('register')
   register(@Body() body: RegisterDto): Promise<AuthToken> {
     return this.commandBus.execute(
-      new RegisterCommand(body.email, body.password),
+      new RegisterCommand(body.email, body.password, body.name),
     );
   }
 
