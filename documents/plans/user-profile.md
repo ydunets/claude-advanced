@@ -222,6 +222,14 @@ The visual check then found that the first corrected submit after a refused name
 - `pnpm --filter web test:e2e profile -g "corrected submit"` (1 failed):
   - `profile.spec.ts` "the first corrected submit after a refused name saves it": "Your name was saved." not found.
 
+Task 2 ([#37](https://github.com/ydunets/claude-advanced/issues/37)), 2026-11-03, same stack. Every new test failed on a missing element:
+
+- `pnpm --filter web test:e2e profile` (7 failed, 8 passed):
+  - "a password change keeps this browser signed in and only the new password signs in", "a password change sends another browser to the login page", "a wrong current password shows an error and the old password still works", "a new password under 8 characters is refused", "different new password entries are refused", "a new password equal to the current one is refused": no `Current password` field (`locator.fill` timeout).
+  - "repeated wrong current passwords show the try-later message and keep this browser signed in": no `Current password` field, so the retry loop timed out.
+
+The first green attempt kept the field errors hidden: React's post-action form reset fires React Aria's `onChange`, which marked the form as edited. The password fields therefore mark an edit on the native `input` event, which only typing fires.
+
 **Tasks:**
 
 1. A name form on `/profile` (Server Action calling `PATCH /profile`) saves the name and shows the API's error on the field for an empty, spaces-only or too long name.

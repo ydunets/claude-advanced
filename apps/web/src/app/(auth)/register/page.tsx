@@ -1,11 +1,9 @@
 import type { Metadata } from 'next';
+import { MIN_PASSWORD_LENGTH } from '@/lib/api';
 import { ROUTES } from '@/lib/routes';
 import { registerUser } from '../actions';
 import { AuthCard } from '../auth-card';
 import { CredentialsForm } from '../credentials-form';
-
-// Mirrors MIN_PASSWORD_LENGTH in apps/api/src/auth/dto/credentials.dto.ts.
-const MIN_PASSWORD_LENGTH = 8;
 
 export const metadata: Metadata = {
   title: 'Create account · Video Meetings',

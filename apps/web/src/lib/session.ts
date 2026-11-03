@@ -2,7 +2,16 @@ import { cookies } from 'next/headers';
 
 export const ACCESS_TOKEN_COOKIE = 'accessToken';
 
-export async function setAccessToken(accessToken: string): Promise<void> {
+// Reads the `{ accessToken }` body that sign-in, registration and a password
+// change return, and stores the token as this browser's session.
+export async function storeIssuedAccessToken(
+  response: Response,
+): Promise<void> {
+  const { accessToken } = (await response.json()) as { accessToken: string };
+  await setAccessToken(accessToken);
+}
+
+async function setAccessToken(accessToken: string): Promise<void> {
   // ponytail: session cookie, the API enforces the JWT expiry on each request.
   (await cookies()).set(ACCESS_TOKEN_COOKIE, accessToken, {
     httpOnly: true,

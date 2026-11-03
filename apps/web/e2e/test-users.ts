@@ -13,7 +13,7 @@ export const TEST_PASSWORD = 'test-password-123';
 export const TEST_NAME = 'Ada Lovelace';
 export const TEST_NAME_INITIALS = 'AL';
 
-type TestUser = { name: string; email: string; accessToken: string };
+export type TestUser = { name: string; email: string; accessToken: string };
 type TestMeeting = { title: string; date: string };
 type TestFile = { name: string; mimeType: string; buffer: Buffer };
 

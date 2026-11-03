@@ -8,6 +8,7 @@ import { findAccessToken } from '@/lib/session';
 import { MeetingPageShell } from '../meetings/[id]/meeting-page-shell';
 import { UserAvatar } from '../user-avatar';
 import { NameForm } from './name-form';
+import { PasswordForm } from './password-form';
 
 export const metadata: Metadata = {
   title: 'Your profile · Video Meetings',
@@ -51,6 +52,18 @@ async function ProfileContent(): Promise<React.JSX.Element> {
         </h2>
         <Card className="p-5 shadow-none">
           <NameForm name={profile.name} />
+        </Card>
+      </section>
+
+      <section
+        aria-labelledby="change-password"
+        className="flex flex-col gap-4"
+      >
+        <h2 id="change-password" className="text-base font-semibold">
+          Change your password
+        </h2>
+        <Card className="p-5 shadow-none">
+          <PasswordForm />
         </Card>
       </section>
     </main>

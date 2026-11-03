@@ -1,9 +1,13 @@
 export const API_ENDPOINTS = {
   REGISTER: '/auth/register',
   LOGIN: '/auth/login',
+  CHANGE_PASSWORD: '/auth/password',
   MEETINGS: '/meetings',
   PROFILE: '/profile',
 } as const;
+
+// Mirrors MIN_PASSWORD_LENGTH in apps/api/src/auth/dto/credentials.dto.ts.
+export const MIN_PASSWORD_LENGTH = 8;
 
 // The multipart field the API's FileInterceptor reads.
 export const MEETING_FILE_FIELD = 'file';
@@ -13,8 +17,10 @@ export const HTTP_STATUS = {
   CREATED: 201,
   BAD_REQUEST: 400,
   UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
+  TOO_MANY_REQUESTS: 429,
 } as const;
 
 export function getApiUrl(): string {
@@ -80,12 +86,16 @@ export const GENERIC_ERROR = 'Something went wrong. Please try again later.';
 export const UNREACHABLE_ERROR =
   'The server is unreachable right now. Please try again.';
 
-// Nest's ValidationPipe returns `message` as a list of rule violations.
+// Nest's ValidationPipe returns `message` as a list of rule violations; a
+// handler's BadRequestException returns it as one string.
 export async function readValidationMessage(
   response: Response,
 ): Promise<string> {
   const body: unknown = await response.json().catch(() => null);
   const message = (body as { message?: unknown } | null)?.message;
+  if (typeof message === 'string') {
+    return message;
+  }
   return Array.isArray(message) ? message.join('. ') : GENERIC_ERROR;
 }
 

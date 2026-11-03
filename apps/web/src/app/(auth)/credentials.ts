@@ -8,7 +8,7 @@ import {
 } from '@/lib/api';
 import { getFormText } from '@/lib/form-data';
 import { ROUTES } from '@/lib/routes';
-import { setAccessToken } from '@/lib/session';
+import { storeIssuedAccessToken } from '@/lib/session';
 
 export type CredentialsState = {
   name: string;
@@ -56,8 +56,7 @@ export async function submitCredentials(
     return { ...failure, formError: GENERIC_ERROR };
   }
 
-  const { accessToken } = (await response.json()) as { accessToken: string };
-  await setAccessToken(accessToken);
+  await storeIssuedAccessToken(response);
   // Outside any try block: redirect() works by throwing.
   redirect(ROUTES.HOME);
 }

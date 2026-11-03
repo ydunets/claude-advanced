@@ -10,8 +10,9 @@ import {
   Spinner,
   TextField,
 } from '@heroui/react';
-import { useActionState, useState } from 'react';
+import { useActionState } from 'react';
 import { updateName, type NameState } from './actions';
+import { useEditedSinceSubmit } from './use-edited-since-submit';
 
 type NameFormProps = {
   name: string;
@@ -26,13 +27,7 @@ export function NameForm({ name }: NameFormProps): React.JSX.Element {
     formError: null,
     isSaved: false,
   } satisfies NameState);
-  // React Aria clears a server error on blur, which removes the message and
-  // moves the button up between mouse down and mouse up, so the first
-  // corrected submit missed it. Clearing on edit settles the layout earlier.
-  const [stateAtLastEdit, setStateAtLastEdit] = useState<NameState | null>(
-    null,
-  );
-  const isEditedSinceSubmit = stateAtLastEdit === state;
+  const [isEditedSinceSubmit, markEdited] = useEditedSinceSubmit(state);
 
   return (
     <Form
@@ -65,7 +60,7 @@ export function NameForm({ name }: NameFormProps): React.JSX.Element {
         fullWidth
         name="name"
         autoComplete="name"
-        onChange={() => setStateAtLastEdit(state)}
+        onChange={markEdited}
       >
         <Label>Name</Label>
         <Input />

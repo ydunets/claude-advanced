@@ -1,4 +1,12 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page,
+} from '@playwright/test';
+import { MIN_PASSWORD_LENGTH } from '../src/lib/api';
 import { ROUTES } from '../src/lib/routes';
 import {
   createTestUser,
@@ -6,6 +14,7 @@ import {
   TEST_NAME,
   TEST_NAME_INITIALS,
   TEST_PASSWORD,
+  type TestUser,
 } from './test-users';
 
 const MAX_NAME_LENGTH = 100;
@@ -13,11 +22,12 @@ const NEW_NAME = 'Grace Hopper';
 const TRIMMED_NAME = 'Anna Maria Lee';
 const SAVED_MESSAGE = 'Your name was saved.';
 
-async function openProfileAsNewUser(page: Page): Promise<void> {
+async function openProfileAsNewUser(page: Page): Promise<TestUser> {
   const user = await createTestUser();
   await logIn(page, user.email, TEST_PASSWORD);
   await expect(page).toHaveURL(ROUTES.HOME);
   await page.goto(ROUTES.PROFILE);
+  return user;
 }
 
 // Exact, because the "Edit your name" section is also labelled.
@@ -107,6 +117,216 @@ test('surrounding spaces are trimmed and the initials show AM', async ({
   await expect(
     page.getByRole('main').getByText('AM', { exact: true }),
   ).toBeVisible();
+});
+
+const NEW_PASSWORD = 'new-password-456';
+const PASSWORD_SAVED_MESSAGE = 'Your password was changed.';
+const WRONG_PASSWORD = 'wrong-password-789';
+const SHORT_PASSWORD_LENGTH = MIN_PASSWORD_LENGTH - 1;
+const SHORT_PASSWORD = 'a'.repeat(SHORT_PASSWORD_LENGTH);
+const INCORRECT_CREDENTIALS_MESSAGE = 'Incorrect email or password.';
+// Long enough for one submit's response, short enough to retry quickly.
+const SUBMIT_RESPONSE_TIMEOUT_MS = 1000;
+
+type PasswordEntries = {
+  currentPassword: string;
+  newPassword: string;
+  confirmation: string;
+};
+
+async function submitPassword(
+  page: Page,
+  { currentPassword, newPassword, confirmation }: PasswordEntries,
+): Promise<void> {
+  await page.getByLabel('Current password').fill(currentPassword);
+  await page.getByLabel('New password', { exact: true }).fill(newPassword);
+  await page.getByLabel('Confirm new password').fill(confirmation);
+  await page.getByRole('button', { name: 'Change password' }).click();
+}
+
+async function submitNewPassword(
+  page: Page,
+  newPassword: string,
+): Promise<void> {
+  await submitPassword(page, {
+    currentPassword: TEST_PASSWORD,
+    newPassword,
+    confirmation: newPassword,
+  });
+}
+
+async function expectStillSignedIn(page: Page): Promise<void> {
+  await page.reload();
+  await expect(page).toHaveURL(ROUTES.PROFILE);
+  await expect(
+    page.getByRole('main').getByRole('heading', { level: 1, name: TEST_NAME }),
+  ).toBeVisible();
+}
+
+// Signs in from a fresh browser context, so this page's cookie is untouched.
+async function signInFromNewBrowser(
+  browser: Browser,
+  email: string,
+  password: string,
+): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await logIn(page, email, password);
+  return { context, page };
+}
+
+async function expectSignInAccepted(
+  browser: Browser,
+  email: string,
+  password: string,
+): Promise<void> {
+  const { context, page } = await signInFromNewBrowser(
+    browser,
+    email,
+    password,
+  );
+  await expect(page).toHaveURL(ROUTES.HOME);
+  await context.close();
+}
+
+async function expectSignInRefused(
+  browser: Browser,
+  email: string,
+  password: string,
+): Promise<void> {
+  const { context, page } = await signInFromNewBrowser(
+    browser,
+    email,
+    password,
+  );
+  await expect(page.getByText(INCORRECT_CREDENTIALS_MESSAGE)).toBeVisible();
+  await expect(page).toHaveURL(ROUTES.LOGIN);
+  await context.close();
+}
+
+test('a password change keeps this browser signed in and only the new password signs in', async ({
+  browser,
+  page,
+}) => {
+  const user = await openProfileAsNewUser(page);
+
+  await submitNewPassword(page, NEW_PASSWORD);
+  await expect(page.getByText(PASSWORD_SAVED_MESSAGE)).toBeVisible();
+
+  await expectStillSignedIn(page);
+  await expectSignInRefused(browser, user.email, TEST_PASSWORD);
+  await expectSignInAccepted(browser, user.email, NEW_PASSWORD);
+});
+
+test('a password change sends another browser to the login page', async ({
+  browser,
+  page,
+}) => {
+  const user = await openProfileAsNewUser(page);
+  const { context: otherContext, page: otherPage } = await signInFromNewBrowser(
+    browser,
+    user.email,
+    TEST_PASSWORD,
+  );
+  await expect(otherPage).toHaveURL(ROUTES.HOME);
+
+  await submitNewPassword(page, NEW_PASSWORD);
+  await expect(page.getByText(PASSWORD_SAVED_MESSAGE)).toBeVisible();
+
+  await otherPage.goto(ROUTES.PROFILE);
+  await expect(otherPage).toHaveURL(ROUTES.LOGIN);
+  await otherContext.close();
+});
+
+test('a wrong current password shows an error and the old password still works', async ({
+  browser,
+  page,
+}) => {
+  const user = await openProfileAsNewUser(page);
+
+  await submitPassword(page, {
+    currentPassword: WRONG_PASSWORD,
+    newPassword: NEW_PASSWORD,
+    confirmation: NEW_PASSWORD,
+  });
+
+  await expect(page.getByLabel('Current password')).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
+  await expect(
+    page.getByText('The current password is incorrect.'),
+  ).toBeVisible();
+  await expectSignInAccepted(browser, user.email, TEST_PASSWORD);
+});
+
+test('a new password under 8 characters is refused', async ({ page }) => {
+  await openProfileAsNewUser(page);
+
+  await submitNewPassword(page, SHORT_PASSWORD);
+
+  await expect(
+    page.getByLabel('New password', { exact: true }),
+  ).toHaveAttribute('aria-invalid', 'true');
+  await expect(
+    page.getByText(`longer than or equal to ${MIN_PASSWORD_LENGTH} characters`),
+  ).toBeVisible();
+  await expectStillSignedIn(page);
+});
+
+test('different new password entries are refused', async ({ page }) => {
+  await openProfileAsNewUser(page);
+
+  await submitPassword(page, {
+    currentPassword: TEST_PASSWORD,
+    newPassword: NEW_PASSWORD,
+    confirmation: `${NEW_PASSWORD}-typo`,
+  });
+
+  await expect(page.getByLabel('Confirm new password')).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
+  await expect(
+    page.getByText('The new password entries do not match.'),
+  ).toBeVisible();
+  await expect(page.getByText(PASSWORD_SAVED_MESSAGE)).toHaveCount(0);
+});
+
+test('a new password equal to the current one is refused', async ({ page }) => {
+  await openProfileAsNewUser(page);
+
+  await submitNewPassword(page, TEST_PASSWORD);
+
+  await expect(
+    page.getByLabel('New password', { exact: true }),
+  ).toHaveAttribute('aria-invalid', 'true');
+  await expect(
+    page.getByText('New password must differ from the current one'),
+  ).toBeVisible();
+});
+
+test('repeated wrong current passwords show the try-later message and keep this browser signed in', async ({
+  page,
+}) => {
+  await openProfileAsNewUser(page);
+  const tryLaterMessage = page.getByText('Too many attempts.', {
+    exact: false,
+  });
+
+  // Submits until the limit is reached, whatever AUTH_ATTEMPT_LIMIT is.
+  await expect(async () => {
+    await submitPassword(page, {
+      currentPassword: WRONG_PASSWORD,
+      newPassword: NEW_PASSWORD,
+      confirmation: NEW_PASSWORD,
+    });
+    await expect(tryLaterMessage).toBeVisible({
+      timeout: SUBMIT_RESPONSE_TIMEOUT_MS,
+    });
+  }).toPass();
+
+  await expectStillSignedIn(page);
 });
 
 test('the profile page sends a signed-out visitor to the login page', async ({
