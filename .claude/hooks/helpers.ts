@@ -1,7 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { parseArgs } from 'node:util';
 
 import {
+  CLI_OPTIONS,
   COMMANDS,
   COMPLETED_REASON,
   CONFIG_PATH,
@@ -107,9 +109,29 @@ function assertConfig(raw: unknown): asserts raw is RalphConfig {
   }
 }
 
+// Unknown flags throw, so a typo never silently falls back to the config.
+export function readCliOverrides(): Partial<RalphConfig> {
+  const { values } = parseArgs({
+    options: {
+      [CLI_OPTIONS.PROMPT]: { type: 'string' },
+      [CLI_OPTIONS.MAX_TURNS]: { type: 'string' },
+    },
+  });
+  const prompt = values[CLI_OPTIONS.PROMPT];
+  const maxTurns = values[CLI_OPTIONS.MAX_TURNS];
+  return {
+    ...(prompt !== undefined && { prompt }),
+    ...(maxTurns !== undefined && { maxTurns: Number(maxTurns) }),
+  };
+}
+
 // Parse, don't validate: the rest of the hook only ever sees a RalphConfig.
-export function readConfig(): RalphConfig {
-  const raw: unknown = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+// Overrides are merged before validation, so they obey the same schema.
+export function readConfig(overrides: Partial<RalphConfig>): RalphConfig {
+  const raw: unknown = {
+    ...JSON.parse(readFileSync(CONFIG_PATH, 'utf8')),
+    ...overrides,
+  };
   assertConfig(raw);
   return raw;
 }

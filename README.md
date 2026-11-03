@@ -62,7 +62,8 @@ Run from the repository root after `pnpm install`.
 `pnpm ralph` runs one headless Claude session per open issue of the milestone,
 then pushes the branch, opens the pull request and reviews it. It stops after
 `maxIteration` sessions; delete `$(git rev-parse --git-path ralph-iteration.json)`
-to allow more.
+to allow more. `--max-turns <n>` and `--prompt <text>` override the config for
+one run (`pnpm ralph --max-turns 30`); without them the config values apply.
 
 Oxlint is configured in the root `.oxlintrc.json`; each app extends it.
 

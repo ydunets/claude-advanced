@@ -20,6 +20,13 @@ export const PULL_REQUEST_PLACEHOLDER = '{pullRequest}';
 // issue together, so it runs on the strongest model.
 export const REVIEW_MODEL = 'opus';
 
+// `pnpm ralph --prompt <text> --max-turns <n>`: a flag wins over its config
+// field, so a one-off run needs no edit to the tracked config.
+export const CLI_OPTIONS = {
+  PROMPT: 'prompt',
+  MAX_TURNS: 'max-turns',
+} as const;
+
 export const COMMANDS = {
   CLAUDE: 'claude',
   GH: 'gh',
