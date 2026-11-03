@@ -158,6 +158,11 @@ Rules for every phase:
   - `auth.e2e-spec.ts` "refuses a new password under 8 characters": expected 400, got 404.
   - `auth.e2e-spec.ts` "refuses a new password equal to the current one": expected 400, got 404.
 
+2026-11-03, against the dev database. The new test of task 3 ([#34](https://github.com/ydunets/claude-advanced/issues/34)) failed on an assertion:
+
+- `pnpm --filter api test:e2e auth -t "earlier tokens"` (1 failed, 22 skipped):
+  - `auth.e2e-spec.ts` "a password change rejects earlier tokens and accepts the returned one": the token issued before the change on `GET /profile` expected 401, got 200.
+
 **Tasks:**
 
 1. `PATCH /profile` (`UpdateProfileCommand`, dispatching `UpdateUserNameCommand` in `users/`) trims the name, requires 1 to 100 characters (400 otherwise) and returns `ProfileResponse`; registration applies the same name rule.

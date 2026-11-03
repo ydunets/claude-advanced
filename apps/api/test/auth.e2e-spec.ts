@@ -9,6 +9,8 @@ const ENDPOINTS = {
   REGISTER: '/auth/register',
   LOGIN: '/auth/login',
   PASSWORD: '/auth/password',
+  PROFILE: '/profile',
+  MEETINGS: '/meetings',
 };
 
 const VALID_PASSWORD = 'correct-horse-battery';
@@ -232,6 +234,18 @@ describe('Auth (e2e)', () => {
         .send({ currentPassword, newPassword });
     }
 
+    async function expectProtectedEndpointsStatus(
+      accessToken: string,
+      status: HttpStatus,
+    ) {
+      for (const endpoint of [ENDPOINTS.PROFILE, ENDPOINTS.MEETINGS]) {
+        await request(app.getHttpServer())
+          .get(endpoint)
+          .auth(accessToken, { type: 'bearer' })
+          .expect(status);
+      }
+    }
+
     it('changes the password so only the new one signs in', async () => {
       const email = createUniqueEmail();
       const accessToken = await registerAndGetToken(email);
@@ -287,6 +301,32 @@ describe('Auth (e2e)', () => {
       );
 
       await loginUser(email, VALID_PASSWORD).expect(HttpStatus.OK);
+    });
+
+    it('a password change rejects earlier tokens and accepts the returned one', async () => {
+      const email = createUniqueEmail();
+      const earlierToken = await registerAndGetToken(email);
+      const loginResponse = await loginUser(email, VALID_PASSWORD).expect(
+        HttpStatus.OK,
+      );
+      const earlierLoginToken = loginResponse.body.accessToken as string;
+
+      const response = await changePassword(
+        earlierToken,
+        VALID_PASSWORD,
+        NEW_PASSWORD,
+      ).expect(HttpStatus.OK);
+      const returnedToken = response.body.accessToken as string;
+
+      await expectProtectedEndpointsStatus(
+        earlierToken,
+        HttpStatus.UNAUTHORIZED,
+      );
+      await expectProtectedEndpointsStatus(
+        earlierLoginToken,
+        HttpStatus.UNAUTHORIZED,
+      );
+      await expectProtectedEndpointsStatus(returnedToken, HttpStatus.OK);
     });
 
     it('rejects a request without a token', async () => {

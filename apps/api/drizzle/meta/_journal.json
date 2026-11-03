@@ -29,6 +29,13 @@
       "when": 1793450661238,
       "tag": "0003_add_user_name",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793719480179,
+      "tag": "0004_add_user_token_version",
+      "breakpoints": true
     }
   ]
 }
