@@ -49,6 +49,11 @@ Update them whenever a change:
 
 Keep each statement accurate rather than exhaustive: correct or delete outdated lines instead of appending notes. State in the final report which documents were changed, or that none required a change.
 
+## File Upload research
+
+- [Express and multer](documents/researches/meeting-file-upload.md)
+- [NestJS with Fastify](documents/researches/meeting-file-upload-fastify.md)
+
 ## Verification
 
 Before reporting a change as complete, run `pnpm lint`, `pnpm typecheck` and `pnpm test`, plus `pnpm build` when configuration or dependencies changed, and the `test:e2e` suite of each app the change touches.
