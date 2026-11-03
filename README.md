@@ -33,7 +33,8 @@ The web app has `/register` and `/login` pages, which call the API from
 Next.js Server Actions (the API has no CORS), keep the token in an httpOnly
 `accessToken` cookie and redirect to `/`. The home page `/` is only for
 signed-in users: it shows their name next to an initials placeholder, linked
-to the profile page `/profile` (name, email and placeholder), the number of meetings, the three
+to the profile page `/profile` (name, email and placeholder, a name form and a
+password change form that keeps this browser signed in), the number of meetings, the three
 latest meetings (each linking to its meeting page) and a Sign out button. The
 meeting page `/meetings/[id]` shows the title, date, participants and files,
 uploads one file at a time and downloads files through Next.js Route Handlers
@@ -124,7 +125,8 @@ running than the one before it.
   files stay in `FILES_STORAGE_DIR`.
 - **Web end-to-end tests** open Chromium against the app at `E2E_BASE_URL` and
   create their users through the API at `API_URL`. They cover registration,
-  login, the protected home and profile pages, signing out, and the meeting page with file
+  login, the protected home and profile pages, the name edit and password
+  change with their errors, signing out, and the meeting page with file
   uploads (progress, the size limit, a disallowed format and a lost connection), downloads, the empty state and the not-found page. They start no server themselves.
 
 ### First run
