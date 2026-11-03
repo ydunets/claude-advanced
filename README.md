@@ -54,6 +54,12 @@ Run from the repository root after `pnpm install`.
 | `pnpm format`    | Format the repository with Oxfmt                                                    |
 | `pnpm db:up`     | Start Postgres in Docker and wait for health                                        |
 | `pnpm db:down`   | Stop Postgres (data stays in the volume)                                            |
+| `pnpm ralph`     | Run the Ralph Loop for the milestone in `.claude/ralph-config.json`                 |
+
+`pnpm ralph` runs one headless Claude session per open issue of the milestone,
+then pushes the branch, opens the pull request and reviews it. It stops after
+`maxIteration` sessions; delete `$(git rev-parse --git-path ralph-iteration.json)`
+to allow more.
 
 Oxlint is configured in the root `.oxlintrc.json`; each app extends it.
 

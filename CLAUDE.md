@@ -19,6 +19,7 @@ Run every command from the repository root.
 - `pnpm test`: run the unit tests.
 - `pnpm format` and `pnpm format:check`: Oxfmt.
 - `pnpm db:up` and `pnpm db:down`: start (and wait for health) or stop the Postgres 17 container defined in `compose.yaml` (port 5432, volume `postgres-data`). Docker with Compose v2 is required. Container settings come from the root `.env` (template: `.env.example`); `compose.yaml` has no defaults and refuses to start without them.
+- `pnpm ralph`: run the Ralph Loop Stop hook directly for the milestone and branch in `.claude/ralph-config.json`, with no seed session. The iteration counter in the git directory (`ralph-iteration.json`) is never reset by the script; deleting it allows another `maxIteration` sessions.
 - `pnpm --filter api db:migrate`: apply the Drizzle migrations in `apps/api/drizzle/`. `db:generate` creates a new migration after a schema change.
 - `pnpm --filter api test:e2e`: run the API end-to-end suite. It needs a running, migrated database and `apps/api/.env`.
 - `pnpm --filter web test:e2e`: run the web app's Playwright suite. It needs the running web app and API (`pnpm dev`), a migrated database, `apps/web/.env` and Chromium (`pnpm --filter web exec playwright install chromium`, once).
