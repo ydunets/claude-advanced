@@ -65,6 +65,8 @@ then pushes the branch, opens the pull request and reviews it. It stops after
 `maxIteration` sessions; delete `$(git rev-parse --git-path ralph-iteration.json)`
 to allow more. `--max-turns <n>` and `--prompt <text>` override the config for
 one run (`pnpm ralph --max-turns 30`); without them the config values apply.
+The script drops `ANTHROPIC_API_KEY`, so every session runs on the claude.ai
+subscription instead of being billed to an API key.
 
 Oxlint is configured in the root `.oxlintrc.json`; each app extends it.
 
