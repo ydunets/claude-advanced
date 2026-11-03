@@ -5,6 +5,8 @@ export type ProfileResponse = {
   email: string;
 };
 
-export function toProfileResponse(user: User): ProfileResponse {
+export function toProfileResponse(
+  user: Pick<User, 'name' | 'email'>,
+): ProfileResponse {
   return { name: user.name, email: user.email };
 }

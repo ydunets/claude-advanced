@@ -163,6 +163,16 @@ Rules for every phase:
 - `pnpm --filter api test:e2e auth -t "earlier tokens"` (1 failed, 22 skipped):
   - `auth.e2e-spec.ts` "a password change rejects earlier tokens and accepts the returned one": the token issued before the change on `GET /profile` expected 401, got 200.
 
+2026-11-03, after the milestone review of [PR #48](https://github.com/ydunets/claude-advanced/pull/48). Task 2's "rejects a request without a token" was added during its code review, after the red run above, so it was made to fail once by removing the `POST /auth/password` route locally; the route was then restored. The tests added for the review findings failed on an assertion against the code before their fix:
+
+- `pnpm --filter api test:e2e auth -t "without a token"`, route removed (1 failed, 22 skipped):
+  - `auth.e2e-spec.ts` "rejects a request without a token" (`POST /auth/password`): expected 401, got 404.
+- `pnpm --filter api test:e2e auth -t "concurrent changes"` (1 failed, 23 skipped):
+  - `auth.e2e-spec.ts` "concurrent changes from one token let exactly one succeed": expected one 200, got two.
+- `pnpm --filter api test:e2e auth -t "limits"` (2 failed, 24 skipped):
+  - `auth.e2e-spec.ts` "limits sign-in attempts per account": the attempt after the limit expected 429, got 200.
+  - `auth.e2e-spec.ts` "limits password change attempts per account": the attempt after the limit expected 429, got 200.
+
 **Tasks:**
 
 1. `PATCH /profile` (`UpdateProfileCommand`, dispatching `UpdateUserNameCommand` in `users/`) trims the name, requires 1 to 100 characters (400 otherwise) and returns `ProfileResponse`; registration applies the same name rule.

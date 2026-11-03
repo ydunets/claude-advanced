@@ -52,7 +52,12 @@ export class JwtAuthGuard implements CanActivate {
     if (!user || user.tokenVersion !== claims.tokenVersion) {
       throw new UnauthorizedException();
     }
-    request.user = { id: user.id, email: user.email };
+    request.user = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      tokenVersion: user.tokenVersion,
+    };
     return true;
   }
 }

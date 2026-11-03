@@ -18,7 +18,7 @@ export class ProfileController {
 
   @Get()
   getProfile(@CurrentUser() user: AuthenticatedUser): Promise<ProfileResponse> {
-    return this.queryBus.execute(new GetProfileQuery(user.id));
+    return this.queryBus.execute(new GetProfileQuery(user));
   }
 
   @Patch()

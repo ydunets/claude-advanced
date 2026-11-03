@@ -4,7 +4,11 @@ import { INITIAL_TOKEN_VERSION, type User } from '../database/schema.js';
 
 export type AuthToken = { accessToken: string };
 
-export type AuthenticatedUser = { id: string; email: string };
+// Never carries passwordHash: controllers across modules read request.user.
+export type AuthenticatedUser = Pick<
+  User,
+  'id' | 'email' | 'name' | 'tokenVersion'
+>;
 
 export type AccessTokenClaims = { userId: string; tokenVersion: number };
 

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { ChangePasswordCommand } from './change-password.command.js';
 const WRONG_CURRENT_PASSWORD_MESSAGE = 'Current password is incorrect';
 const UNCHANGED_PASSWORD_MESSAGE =
   'New password must differ from the current one';
+const CONCURRENT_CHANGE_MESSAGE = 'The password was changed by another request';
 
 @CommandHandler(ChangePasswordCommand)
 export class ChangePasswordHandler implements ICommandHandler<ChangePasswordCommand> {
@@ -29,8 +31,12 @@ export class ChangePasswordHandler implements ICommandHandler<ChangePasswordComm
 
   // A wrong current password answers 403, not 401, because clients treat 401
   // as signed out. A valid token whose user no longer exists is signed out.
+  // A concurrent change that already moved the token's version answers 409,
+  // not 401, so a double submit never signs out the browser that won.
+  // The guard's user omits passwordHash, so this one read stays.
   async execute({
     userId,
+    tokenVersion,
     currentPassword,
     newPassword,
   }: ChangePasswordCommand): Promise<AuthToken> {
@@ -50,10 +56,10 @@ export class ChangePasswordHandler implements ICommandHandler<ChangePasswordComm
     }
     const passwordHash = await hashPassword(newPassword);
     const updatedUser = await this.commandBus.execute(
-      new UpdateUserPasswordCommand(userId, passwordHash),
+      new UpdateUserPasswordCommand(userId, passwordHash, tokenVersion),
     );
     if (!updatedUser) {
-      throw new UnauthorizedException();
+      throw new ConflictException(CONCURRENT_CHANGE_MESSAGE);
     }
     return this.authTokenService.createAuthToken(updatedUser);
   }

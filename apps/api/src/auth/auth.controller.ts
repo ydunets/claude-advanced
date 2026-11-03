@@ -7,6 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import type { AuthenticatedUser, AuthToken } from './auth-token.service.js';
 import { ChangePasswordCommand } from './commands/change-password.command.js';
 import { RegisterCommand } from './commands/register.command.js';
@@ -32,13 +33,15 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
   login(@Body() body: LoginDto): Promise<AuthToken> {
     return this.queryBus.execute(new LoginQuery(body.email, body.password));
   }
 
   @Post('password')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard)
+  // JwtAuthGuard first: the throttler keys this route by request.user.
+  @UseGuards(JwtAuthGuard, ThrottlerGuard)
   changePassword(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: ChangePasswordDto,
@@ -46,6 +49,7 @@ export class AuthController {
     return this.commandBus.execute(
       new ChangePasswordCommand(
         user.id,
+        user.tokenVersion,
         body.currentPassword,
         body.newPassword,
       ),

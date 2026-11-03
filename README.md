@@ -15,7 +15,10 @@ updates the name (`{ name }`, trimmed, 1 to 100 characters, the same rule as
 at registration). `POST /auth/password` takes
 `{ currentPassword, newPassword }`, answers 403 for a wrong current password
 and 400 for a new password under 8 characters or equal to the current one,
-and returns a new `{ accessToken }`; every token issued earlier stops working.
+and returns a new `{ accessToken }`; every token issued earlier stops working,
+and a second change sent concurrently with the same token answers 409. Sign-in
+and password change attempts are limited per account to `AUTH_ATTEMPT_LIMIT`
+within `AUTH_ATTEMPT_WINDOW_SECONDS`; further attempts answer 429.
 `POST /meetings`, `GET /meetings` and
 `GET /meetings/:id` manage the current user's meetings, and
 `POST /meetings/:id/files` (multipart field `file`), `GET /meetings/:id/files`
@@ -76,11 +79,11 @@ through the `prepare` script.
 All configuration lives in git-ignored env files; neither the code nor
 `compose.yaml` carries default values, and a missing variable stops startup.
 
-| File            | Read by                                                 | Variables                                                                                                  |
-| --------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `.env`          | Docker Compose                                          | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`                                       |
-| `apps/api/.env` | The API (`@nestjs/config`) and `drizzle-kit` (`dotenv`) | `PORT`, `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN_SECONDS`, `FILES_STORAGE_DIR`, `MAX_FILE_SIZE_BYTES` |
-| `apps/web/.env` | The Next.js server and the Playwright suite             | `API_URL`, `E2E_BASE_URL`, `MAX_UPLOAD_SIZE_BYTES`                                                         |
+| File            | Read by                                                 | Variables                                                                                                                                                       |
+| --------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.env`          | Docker Compose                                          | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`                                                                                            |
+| `apps/api/.env` | The API (`@nestjs/config`) and `drizzle-kit` (`dotenv`) | `PORT`, `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN_SECONDS`, `FILES_STORAGE_DIR`, `MAX_FILE_SIZE_BYTES`, `AUTH_ATTEMPT_LIMIT`, `AUTH_ATTEMPT_WINDOW_SECONDS` |
+| `apps/web/.env` | The Next.js server and the Playwright suite             | `API_URL`, `E2E_BASE_URL`, `MAX_UPLOAD_SIZE_BYTES`                                                                                                              |
 
 Create each from its `.env.example` and keep `DATABASE_URL` consistent with
 the Postgres values.
@@ -113,7 +116,8 @@ running than the one before it.
 - **API end-to-end tests** boot `AppModule` inside the test process and send
   HTTP requests with Supertest, so the API server does not need to run. They
   use the real database from `apps/api/.env` and cover registration, login,
-  validation, the profile routes, the password change with token revocation,
+  validation, the profile routes, the password change with token revocation
+  and concurrent changes, the per-account attempt limits,
   the meetings routes and the meeting files routes, including the
   size limit, the format check and an aborted upload. Uploaded test
   files stay in `FILES_STORAGE_DIR`.

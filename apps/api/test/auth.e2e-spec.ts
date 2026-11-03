@@ -15,6 +15,7 @@ const ENDPOINTS = {
 
 const VALID_PASSWORD = 'correct-horse-battery';
 const NEW_PASSWORD = 'staple-battery-horse';
+const OTHER_NEW_PASSWORD = 'battery-staple-correct';
 const WRONG_PASSWORD = 'wrong-horse-battery';
 const TOO_SHORT_PASSWORD = 'short';
 const VALID_NAME = 'Ada Lovelace';
@@ -33,6 +34,15 @@ function decodeJwtPayload(token: string): JwtPayload {
   return JSON.parse(
     Buffer.from(segments[1], 'base64url').toString('utf8'),
   ) as JwtPayload;
+}
+
+// Read from the env that AppModule's ConfigModule loads, so call it only
+// after the app has started.
+function getAuthAttemptLimit(): number {
+  const limit = Number(process.env.AUTH_ATTEMPT_LIMIT);
+  // A missing value would run zero attempts and fail for the wrong reason.
+  expect(limit).toBeGreaterThan(0);
+  return limit;
 }
 
 describe('Auth (e2e)', () => {
@@ -213,6 +223,24 @@ describe('Auth (e2e)', () => {
         .send({ email: 'not-an-email' })
         .expect(HttpStatus.BAD_REQUEST);
     });
+
+    // Counted per account, not per IP: the web app signs every user in from
+    // the same server.
+    it('limits sign-in attempts per account', async () => {
+      const email = createUniqueEmail();
+      const otherEmail = createUniqueEmail();
+      await registerUser(email, VALID_PASSWORD).expect(HttpStatus.CREATED);
+      await registerUser(otherEmail, VALID_PASSWORD).expect(HttpStatus.CREATED);
+
+      for (let attempt = 0; attempt < getAuthAttemptLimit(); attempt++) {
+        await loginUser(email, WRONG_PASSWORD).expect(HttpStatus.UNAUTHORIZED);
+      }
+
+      await loginUser(email.toUpperCase(), VALID_PASSWORD).expect(
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+      await loginUser(otherEmail, VALID_PASSWORD).expect(HttpStatus.OK);
+    });
   });
 
   describe(`POST ${ENDPOINTS.PASSWORD}`, () => {
@@ -327,6 +355,57 @@ describe('Auth (e2e)', () => {
         HttpStatus.UNAUTHORIZED,
       );
       await expectProtectedEndpointsStatus(returnedToken, HttpStatus.OK);
+    });
+
+    // A double submit sends both requests with the same token before either
+    // update lands; only one may win, or its returned token is already stale.
+    it('concurrent changes from one token let exactly one succeed', async () => {
+      const email = createUniqueEmail();
+      const accessToken = await registerAndGetToken(email);
+
+      const [firstResponse, secondResponse] = await Promise.all([
+        changePassword(accessToken, VALID_PASSWORD, NEW_PASSWORD),
+        changePassword(accessToken, VALID_PASSWORD, OTHER_NEW_PASSWORD),
+      ]);
+      const responses = [firstResponse, secondResponse];
+      const winners = responses.filter(
+        (response) => response.status === HttpStatus.OK,
+      );
+      const losers = responses.filter(
+        (response) => response.status !== HttpStatus.OK,
+      );
+
+      expect(winners).toHaveLength(1);
+      const [winner] = winners;
+      const winnerPassword =
+        winner === firstResponse ? NEW_PASSWORD : OTHER_NEW_PASSWORD;
+      const loserPassword =
+        winner === firstResponse ? OTHER_NEW_PASSWORD : NEW_PASSWORD;
+      expect(losers.map((response) => response.status)).toEqual([
+        HttpStatus.CONFLICT,
+      ]);
+      await expectProtectedEndpointsStatus(
+        winner.body.accessToken as string,
+        HttpStatus.OK,
+      );
+      await loginUser(email, winnerPassword).expect(HttpStatus.OK);
+      await loginUser(email, loserPassword).expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('limits password change attempts per account', async () => {
+      const email = createUniqueEmail();
+      const accessToken = await registerAndGetToken(email);
+
+      for (let attempt = 0; attempt < getAuthAttemptLimit(); attempt++) {
+        await changePassword(accessToken, WRONG_PASSWORD, NEW_PASSWORD).expect(
+          HttpStatus.FORBIDDEN,
+        );
+      }
+
+      await changePassword(accessToken, VALID_PASSWORD, NEW_PASSWORD).expect(
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+      await loginUser(email, VALID_PASSWORD).expect(HttpStatus.OK);
     });
 
     it('rejects a request without a token', async () => {
