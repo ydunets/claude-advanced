@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module.js';
 import { CreateUserHandler } from './commands/create-user.handler.js';
 import { UpdateUserNameHandler } from './commands/update-user-name.handler.js';
+import { UpdateUserPasswordHandler } from './commands/update-user-password.handler.js';
 import { FindUserByEmailHandler } from './queries/find-user-by-email.handler.js';
 import { FindUserByIdHandler } from './queries/find-user-by-id.handler.js';
 
@@ -12,6 +13,7 @@ import { FindUserByIdHandler } from './queries/find-user-by-id.handler.js';
   providers: [
     CreateUserHandler,
     UpdateUserNameHandler,
+    UpdateUserPasswordHandler,
     FindUserByEmailHandler,
     FindUserByIdHandler,
   ],

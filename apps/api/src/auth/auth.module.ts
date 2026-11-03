@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller.js';
 import { AuthTokenService } from './auth-token.service.js';
+import { ChangePasswordHandler } from './commands/change-password.handler.js';
 import { RegisterHandler } from './commands/register.handler.js';
 import { LoginHandler } from './queries/login.handler.js';
 
@@ -28,7 +29,12 @@ function getTokenLifetimeSeconds(config: ConfigService): number {
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthTokenService, RegisterHandler, LoginHandler],
+  providers: [
+    AuthTokenService,
+    RegisterHandler,
+    ChangePasswordHandler,
+    LoginHandler,
+  ],
   exports: [AuthTokenService],
 })
 export class AuthModule {}

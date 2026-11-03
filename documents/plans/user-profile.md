@@ -150,6 +150,14 @@ Rules for every phase:
   - `profile.e2e-spec.ts` "another user's token never changes this user's profile": the owner's own `PATCH` expected 200, got 404.
   - `profile.e2e-spec.ts` "rejects a request without a token" (`PATCH`): expected 401, got 404.
 
+2026-11-03, against the dev database. Every new test of task 2 ([#33](https://github.com/ydunets/claude-advanced/issues/33)) failed on an assertion:
+
+- `pnpm --filter api test:e2e auth` (4 failed, 17 passed):
+  - `auth.e2e-spec.ts` "changes the password so only the new one signs in": expected 200, got 404.
+  - `auth.e2e-spec.ts` "refuses a wrong current password and keeps the old one": expected 403, got 404.
+  - `auth.e2e-spec.ts` "refuses a new password under 8 characters": expected 400, got 404.
+  - `auth.e2e-spec.ts` "refuses a new password equal to the current one": expected 400, got 404.
+
 **Tasks:**
 
 1. `PATCH /profile` (`UpdateProfileCommand`, dispatching `UpdateUserNameCommand` in `users/`) trims the name, requires 1 to 100 characters (400 otherwise) and returns `ProfileResponse`; registration applies the same name rule.

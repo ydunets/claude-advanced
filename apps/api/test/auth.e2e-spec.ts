@@ -8,9 +8,11 @@ import { createUniqueEmail } from './test-users.js';
 const ENDPOINTS = {
   REGISTER: '/auth/register',
   LOGIN: '/auth/login',
+  PASSWORD: '/auth/password',
 };
 
 const VALID_PASSWORD = 'correct-horse-battery';
+const NEW_PASSWORD = 'staple-battery-horse';
 const WRONG_PASSWORD = 'wrong-horse-battery';
 const TOO_SHORT_PASSWORD = 'short';
 const VALID_NAME = 'Ada Lovelace';
@@ -208,6 +210,90 @@ describe('Auth (e2e)', () => {
         .post(ENDPOINTS.LOGIN)
         .send({ email: 'not-an-email' })
         .expect(HttpStatus.BAD_REQUEST);
+    });
+  });
+
+  describe(`POST ${ENDPOINTS.PASSWORD}`, () => {
+    async function registerAndGetToken(email: string): Promise<string> {
+      const response = await registerUser(email, VALID_PASSWORD).expect(
+        HttpStatus.CREATED,
+      );
+      return response.body.accessToken as string;
+    }
+
+    function changePassword(
+      accessToken: string,
+      currentPassword: string,
+      newPassword: string,
+    ) {
+      return request(app.getHttpServer())
+        .post(ENDPOINTS.PASSWORD)
+        .auth(accessToken, { type: 'bearer' })
+        .send({ currentPassword, newPassword });
+    }
+
+    it('changes the password so only the new one signs in', async () => {
+      const email = createUniqueEmail();
+      const accessToken = await registerAndGetToken(email);
+
+      const response = await changePassword(
+        accessToken,
+        VALID_PASSWORD,
+        NEW_PASSWORD,
+      ).expect(HttpStatus.OK);
+
+      expect(response.body).toEqual({ accessToken: expect.any(String) });
+      expect(decodeJwtPayload(response.body.accessToken).sub).toBe(
+        decodeJwtPayload(accessToken).sub,
+      );
+      await loginUser(email, VALID_PASSWORD).expect(HttpStatus.UNAUTHORIZED);
+      await loginUser(email, NEW_PASSWORD).expect(HttpStatus.OK);
+    });
+
+    it('refuses a wrong current password and keeps the old one', async () => {
+      const email = createUniqueEmail();
+      const accessToken = await registerAndGetToken(email);
+
+      await changePassword(accessToken, WRONG_PASSWORD, NEW_PASSWORD).expect(
+        HttpStatus.FORBIDDEN,
+      );
+
+      await loginUser(email, VALID_PASSWORD).expect(HttpStatus.OK);
+      await loginUser(email, NEW_PASSWORD).expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('refuses a new password under 8 characters', async () => {
+      const email = createUniqueEmail();
+      const accessToken = await registerAndGetToken(email);
+
+      await changePassword(
+        accessToken,
+        VALID_PASSWORD,
+        TOO_SHORT_PASSWORD,
+      ).expect(HttpStatus.BAD_REQUEST);
+
+      await loginUser(email, VALID_PASSWORD).expect(HttpStatus.OK);
+      await loginUser(email, TOO_SHORT_PASSWORD).expect(
+        HttpStatus.UNAUTHORIZED,
+      );
+    });
+
+    it('refuses a new password equal to the current one', async () => {
+      const email = createUniqueEmail();
+      const accessToken = await registerAndGetToken(email);
+
+      await changePassword(accessToken, VALID_PASSWORD, VALID_PASSWORD).expect(
+        HttpStatus.BAD_REQUEST,
+      );
+
+      await loginUser(email, VALID_PASSWORD).expect(HttpStatus.OK);
+    });
+
+    it('rejects a request without a token', async () => {
+      await request(app.getHttpServer())
+        .post(ENDPOINTS.PASSWORD)
+        .send({ currentPassword: VALID_PASSWORD, newPassword: NEW_PASSWORD })
+        .expect(HttpStatus.UNAUTHORIZED);
     });
   });
 });
