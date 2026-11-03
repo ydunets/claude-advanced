@@ -15,7 +15,7 @@ Run every command from the repository root.
 - `pnpm dev`, `pnpm dev:web`, `pnpm dev:api`: start both apps, or one of them.
 - `pnpm build`: build both apps.
 - `pnpm lint`: run Oxlint once over the repository (type-aware). `pnpm lint:fix` applies autofixes.
-- `pnpm typecheck`: run the TypeScript compiler in each app.
+- `pnpm typecheck`: run the TypeScript compiler in each app and over the Ralph Loop Stop hook in `.claude/hooks/` (TypeScript that Node runs directly through type stripping, Node 22.18 or later).
 - `pnpm test`: run the unit tests.
 - `pnpm format` and `pnpm format:check`: Oxfmt.
 - `pnpm db:up` and `pnpm db:down`: start (and wait for health) or stop the Postgres 17 container defined in `compose.yaml` (port 5432, volume `postgres-data`). Docker with Compose v2 is required. Container settings come from the root `.env` (template: `.env.example`); `compose.yaml` has no defaults and refuses to start without them.
@@ -31,6 +31,7 @@ Run every command from the repository root.
 - Oxfmt settings live in the root `.oxfmtrc.json` (single quotes, trailing commas, 80 columns). Prettier is not used.
 - A Husky `pre-commit` hook (`.husky/pre-commit`, installed by the root `prepare` script) runs `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm --filter api test:e2e` and `pnpm --filter web test:e2e`; a failing check blocks the commit, so committing needs a migrated database and a running `pnpm dev`; when Postgres is unreachable, the hook stops before the e2e suites and asks for `pnpm db:up`. A `pre-push` hook (`.husky/pre-push`) runs `pnpm lint`.
 - A Claude Code `PostToolUse` hook in `.claude/settings.json` runs Oxfmt on every file Claude edits or writes.
+- `permissions.allow` in `.claude/settings.json` pre-approves the edits, `pnpm`, `git` and `gh` commands that the headless Ralph Loop sessions need, and `permissions.deny` blocks pushing, rebasing, opening and merging pull requests. Both lists apply to interactive sessions too.
 - Add a dependency to the app that needs it with `pnpm --filter <web|api> add <package>`.
 - Build outputs (`dist`, `.next`) and `.env*` files are ignored by git. Every configurable value lives in an env file, never as a default in code or `compose.yaml`; add each new variable to the matching `.env.example`.
 - The two apps do not share code yet. Introduce a `packages/` workspace only when real shared code exists.

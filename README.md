@@ -35,19 +35,19 @@ that stream to and from the API. Another user's or an unknown meeting shows
 
 Run from the repository root after `pnpm install`.
 
-| Command          | Purpose                                      |
-| ---------------- | -------------------------------------------- |
-| `pnpm dev`       | Start both apps in watch mode                |
-| `pnpm dev:web`   | Start the Next.js app only                   |
-| `pnpm dev:api`   | Start the NestJS app only                    |
-| `pnpm build`     | Build every app                              |
-| `pnpm lint`      | Run Oxlint with type-aware rules             |
-| `pnpm lint:fix`  | Apply Oxlint autofixes                       |
-| `pnpm typecheck` | Run the TypeScript compiler without emitting |
-| `pnpm test`      | Run the unit tests (Vitest)                  |
-| `pnpm format`    | Format the repository with Oxfmt             |
-| `pnpm db:up`     | Start Postgres in Docker and wait for health |
-| `pnpm db:down`   | Stop Postgres (data stays in the volume)     |
+| Command          | Purpose                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| `pnpm dev`       | Start both apps in watch mode                                                       |
+| `pnpm dev:web`   | Start the Next.js app only                                                          |
+| `pnpm dev:api`   | Start the NestJS app only                                                           |
+| `pnpm build`     | Build every app                                                                     |
+| `pnpm lint`      | Run Oxlint with type-aware rules                                                    |
+| `pnpm lint:fix`  | Apply Oxlint autofixes                                                              |
+| `pnpm typecheck` | Run the TypeScript compiler without emitting, in each app and over `.claude/hooks/` |
+| `pnpm test`      | Run the unit tests (Vitest)                                                         |
+| `pnpm format`    | Format the repository with Oxfmt                                                    |
+| `pnpm db:up`     | Start Postgres in Docker and wait for health                                        |
+| `pnpm db:down`   | Stop Postgres (data stays in the volume)                                            |
 
 Oxlint is configured in the root `.oxlintrc.json`; each app extends it.
 

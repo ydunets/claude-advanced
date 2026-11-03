@@ -1,4 +1,49 @@
 {
+  "permissions": {
+    "allow": [
+      "Edit",
+      "Write",
+      "Skill(code-review)",
+      "Skill(code-review *)",
+      "Skill(commit-work)",
+      "Skill(commit-work *)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm lint:fix *)",
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm build *)",
+      "Bash(pnpm format *)",
+      "Bash(pnpm format:check *)",
+      "Bash(pnpm --filter api *)",
+      "Bash(pnpm --filter web *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git rev-parse *)",
+      "Bash(git branch *)",
+      "Bash(git switch *)",
+      "Bash(git add *)",
+      "Bash(git restore --staged *)",
+      "Bash(git commit *)",
+      "Bash(gh issue view *)",
+      "Bash(gh issue list *)",
+      "Bash(gh issue comment *)",
+      "Bash(gh issue close *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh api --method POST repos/*/pulls/*/reviews *)"
+    ],
+    "deny": [
+      "Bash(git push *)",
+      "Bash(git rebase *)",
+      "Bash(git reset --hard *)",
+      "Bash(git branch -D *)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr merge *)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
@@ -18,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop.js\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop.ts\"",
             "timeout": 86400,
             "statusMessage": "Ralph Loop: checking the milestone"
           }
