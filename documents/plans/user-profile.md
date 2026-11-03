@@ -133,7 +133,7 @@ Rules for every phase:
 
 ## Phase 2: Name update and password change (API)
 
-**Status:** pending
+**Status:** done
 **Milestone:** [User Profile, Phase 2: Name update and password change (API)](https://github.com/ydunets/claude-advanced/milestone/7)
 **Goal:** the API updates a user's name under the name rules, changes the password only after the current password is confirmed, and rejects every session issued before the change except the new one it returns.
 **Touches:** database, backend, documentation

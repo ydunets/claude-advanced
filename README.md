@@ -10,7 +10,13 @@ pnpm workspace with two applications.
 The API exposes `POST /auth/register`, which takes `{ name, email, password }`,
 and `POST /auth/login`, which takes `{ email, password }`; both return
 `{ accessToken }` (a JWT). With `Authorization: Bearer <accessToken>`,
-`GET /profile` returns the user's `{ name, email }`, and `POST /meetings`, `GET /meetings` and
+`GET /profile` returns the user's `{ name, email }` and `PATCH /profile`
+updates the name (`{ name }`, trimmed, 1 to 100 characters, the same rule as
+at registration). `POST /auth/password` takes
+`{ currentPassword, newPassword }`, answers 403 for a wrong current password
+and 400 for a new password under 8 characters or equal to the current one,
+and returns a new `{ accessToken }`; every token issued earlier stops working.
+`POST /meetings`, `GET /meetings` and
 `GET /meetings/:id` manage the current user's meetings, and
 `POST /meetings/:id/files` (multipart field `file`), `GET /meetings/:id/files`
 and `GET /meetings/:id/files/:fileId` upload, list and download a meeting's
@@ -101,7 +107,8 @@ running than the one before it.
 - **API end-to-end tests** boot `AppModule` inside the test process and send
   HTTP requests with Supertest, so the API server does not need to run. They
   use the real database from `apps/api/.env` and cover registration, login,
-  validation, the profile route, the meetings routes and the meeting files routes, including the
+  validation, the profile routes, the password change with token revocation,
+  the meetings routes and the meeting files routes, including the
   size limit, the format check and an aborted upload. Uploaded test
   files stay in `FILES_STORAGE_DIR`.
 - **Web end-to-end tests** open Chromium against the app at `E2E_BASE_URL` and
