@@ -14,6 +14,9 @@ const VALID_PASSWORD = 'correct-horse-battery';
 const WRONG_PASSWORD = 'wrong-horse-battery';
 const TOO_SHORT_PASSWORD = 'short';
 const VALID_NAME = 'Ada Lovelace';
+const MAX_NAME_LENGTH = 100;
+const TOO_LONG_NAME_LENGTH = MAX_NAME_LENGTH + 1;
+const TOO_LONG_NAME = 'a'.repeat(TOO_LONG_NAME_LENGTH);
 const JWT_SEGMENT_COUNT = 3;
 
 type JwtPayload = { sub: string; email: string; exp: number };
@@ -107,6 +110,17 @@ describe('Auth (e2e)', () => {
         .expect(HttpStatus.BAD_REQUEST);
 
       // The email is still free, so the refused request stored nothing.
+      await registerUser(email, VALID_PASSWORD).expect(HttpStatus.CREATED);
+    });
+
+    it('rejects a registration with a name over 100 characters', async () => {
+      const email = createUniqueEmail();
+
+      await request(app.getHttpServer())
+        .post(ENDPOINTS.REGISTER)
+        .send({ email, password: VALID_PASSWORD, name: TOO_LONG_NAME })
+        .expect(HttpStatus.BAD_REQUEST);
+
       await registerUser(email, VALID_PASSWORD).expect(HttpStatus.CREATED);
     });
 

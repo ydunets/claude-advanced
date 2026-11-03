@@ -140,7 +140,15 @@ Rules for every phase:
 **Depends on:** Phase 1 (`users.name`, `FindUserByIdQuery`, `profile/`, `GET /profile`, `ProfileResponse`, `apps/api/test/profile.e2e-spec.ts`)
 **Read first:** `apps/api/src/auth/jwt-auth.guard.ts`, `auth-token.service.ts`, `password.ts`, `queries/login.handler.ts`, `dto/credentials.dto.ts` (why `LoginDto` has no length rule), `apps/api/src/users/`, `apps/api/src/profile/`, `apps/api/test/auth.e2e-spec.ts`, `apps/api/test/profile.e2e-spec.ts`
 **Tests first:** `pnpm --filter api test:e2e auth profile`. Expected red: `PATCH /profile` and `POST /auth/password` answer 404 as missing routes; registration accepts a 101 character name (201 instead of 400). "another user's token never changes this user's profile" is expected green before implementation only if it asserts nothing but the other user's unchanged name, because a missing route changes nothing; it must first assert that the owner's own `PATCH` succeeds, so a missing route turns it red.
-**Red run:** not yet run.
+**Red run:** 2026-11-03, against the dev database. Every new test of task 1 ([#32](https://github.com/ydunets/claude-advanced/issues/32)) failed on an assertion:
+
+- `pnpm --filter api test:e2e auth profile` (7 failed, 18 passed):
+  - `auth.e2e-spec.ts` "rejects a registration with a name over 100 characters": expected 400, got 201.
+  - `profile.e2e-spec.ts` "updates the name and trims surrounding spaces": expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects an empty or spaces-only name" (both cases of the `it.each` table): expected 400, got 404.
+  - `profile.e2e-spec.ts` "rejects a name over 100 characters": expected 400, got 404.
+  - `profile.e2e-spec.ts` "another user's token never changes this user's profile": the owner's own `PATCH` expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects a request without a token" (`PATCH`): expected 401, got 404.
 
 **Tasks:**
 
