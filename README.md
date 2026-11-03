@@ -10,7 +10,16 @@ pnpm workspace with two applications.
 The API exposes `POST /auth/register`, which takes `{ name, email, password }`,
 and `POST /auth/login`, which takes `{ email, password }`; both return
 `{ accessToken }` (a JWT). With `Authorization: Bearer <accessToken>`,
-`GET /profile` returns the user's `{ name, email }`, and `POST /meetings`, `GET /meetings` and
+`GET /profile` returns the user's `{ name, email }` and `PATCH /profile`
+updates the name (`{ name }`, trimmed, 1 to 100 characters, the same rule as
+at registration). `POST /auth/password` takes
+`{ currentPassword, newPassword }`, answers 403 for a wrong current password
+and 400 for a new password under 8 characters or equal to the current one,
+and returns a new `{ accessToken }`; every token issued earlier stops working,
+and a second change sent concurrently with the same token answers 409. Sign-in
+and password change attempts are limited per account to `AUTH_ATTEMPT_LIMIT`
+within `AUTH_ATTEMPT_WINDOW_SECONDS`; further attempts answer 429.
+`POST /meetings`, `GET /meetings` and
 `GET /meetings/:id` manage the current user's meetings, and
 `POST /meetings/:id/files` (multipart field `file`), `GET /meetings/:id/files`
 and `GET /meetings/:id/files/:fileId` upload, list and download a meeting's
@@ -35,19 +44,25 @@ that stream to and from the API. Another user's or an unknown meeting shows
 
 Run from the repository root after `pnpm install`.
 
-| Command          | Purpose                                      |
-| ---------------- | -------------------------------------------- |
-| `pnpm dev`       | Start both apps in watch mode                |
-| `pnpm dev:web`   | Start the Next.js app only                   |
-| `pnpm dev:api`   | Start the NestJS app only                    |
-| `pnpm build`     | Build every app                              |
-| `pnpm lint`      | Run Oxlint with type-aware rules             |
-| `pnpm lint:fix`  | Apply Oxlint autofixes                       |
-| `pnpm typecheck` | Run the TypeScript compiler without emitting |
-| `pnpm test`      | Run the unit tests (Vitest)                  |
-| `pnpm format`    | Format the repository with Oxfmt             |
-| `pnpm db:up`     | Start Postgres in Docker and wait for health |
-| `pnpm db:down`   | Stop Postgres (data stays in the volume)     |
+| Command          | Purpose                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| `pnpm dev`       | Start both apps in watch mode                                                       |
+| `pnpm dev:web`   | Start the Next.js app only                                                          |
+| `pnpm dev:api`   | Start the NestJS app only                                                           |
+| `pnpm build`     | Build every app                                                                     |
+| `pnpm lint`      | Run Oxlint with type-aware rules                                                    |
+| `pnpm lint:fix`  | Apply Oxlint autofixes                                                              |
+| `pnpm typecheck` | Run the TypeScript compiler without emitting, in each app and over `.claude/hooks/` |
+| `pnpm test`      | Run the unit tests (Vitest)                                                         |
+| `pnpm format`    | Format the repository with Oxfmt                                                    |
+| `pnpm db:up`     | Start Postgres in Docker and wait for health                                        |
+| `pnpm db:down`   | Stop Postgres (data stays in the volume)                                            |
+| `pnpm ralph`     | Run the Ralph Loop for the milestone in `.claude/ralph-config.json`                 |
+
+`pnpm ralph` runs one headless Claude session per open issue of the milestone,
+then pushes the branch, opens the pull request and reviews it. It stops after
+`maxIteration` sessions; delete `$(git rev-parse --git-path ralph-iteration.json)`
+to allow more.
 
 Oxlint is configured in the root `.oxlintrc.json`; each app extends it.
 
@@ -64,11 +79,11 @@ through the `prepare` script.
 All configuration lives in git-ignored env files; neither the code nor
 `compose.yaml` carries default values, and a missing variable stops startup.
 
-| File            | Read by                                                 | Variables                                                                                                  |
-| --------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `.env`          | Docker Compose                                          | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`                                       |
-| `apps/api/.env` | The API (`@nestjs/config`) and `drizzle-kit` (`dotenv`) | `PORT`, `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN_SECONDS`, `FILES_STORAGE_DIR`, `MAX_FILE_SIZE_BYTES` |
-| `apps/web/.env` | The Next.js server and the Playwright suite             | `API_URL`, `E2E_BASE_URL`, `MAX_UPLOAD_SIZE_BYTES`                                                         |
+| File            | Read by                                                 | Variables                                                                                                                                                       |
+| --------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.env`          | Docker Compose                                          | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`                                                                                            |
+| `apps/api/.env` | The API (`@nestjs/config`) and `drizzle-kit` (`dotenv`) | `PORT`, `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN_SECONDS`, `FILES_STORAGE_DIR`, `MAX_FILE_SIZE_BYTES`, `AUTH_ATTEMPT_LIMIT`, `AUTH_ATTEMPT_WINDOW_SECONDS` |
+| `apps/web/.env` | The Next.js server and the Playwright suite             | `API_URL`, `E2E_BASE_URL`, `MAX_UPLOAD_SIZE_BYTES`                                                                                                              |
 
 Create each from its `.env.example` and keep `DATABASE_URL` consistent with
 the Postgres values.
@@ -101,7 +116,9 @@ running than the one before it.
 - **API end-to-end tests** boot `AppModule` inside the test process and send
   HTTP requests with Supertest, so the API server does not need to run. They
   use the real database from `apps/api/.env` and cover registration, login,
-  validation, the profile route, the meetings routes and the meeting files routes, including the
+  validation, the profile routes, the password change with token revocation
+  and concurrent changes, the per-account attempt limits,
+  the meetings routes and the meeting files routes, including the
   size limit, the format check and an aborted upload. Uploaded test
   files stay in `FILES_STORAGE_DIR`.
 - **Web end-to-end tests** open Chromium against the app at `E2E_BASE_URL` and

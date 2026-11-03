@@ -133,14 +133,45 @@ Rules for every phase:
 
 ## Phase 2: Name update and password change (API)
 
-**Status:** pending
+**Status:** done
 **Milestone:** [User Profile, Phase 2: Name update and password change (API)](https://github.com/ydunets/claude-advanced/milestone/7)
 **Goal:** the API updates a user's name under the name rules, changes the password only after the current password is confirmed, and rejects every session issued before the change except the new one it returns.
 **Touches:** database, backend, documentation
 **Depends on:** Phase 1 (`users.name`, `FindUserByIdQuery`, `profile/`, `GET /profile`, `ProfileResponse`, `apps/api/test/profile.e2e-spec.ts`)
 **Read first:** `apps/api/src/auth/jwt-auth.guard.ts`, `auth-token.service.ts`, `password.ts`, `queries/login.handler.ts`, `dto/credentials.dto.ts` (why `LoginDto` has no length rule), `apps/api/src/users/`, `apps/api/src/profile/`, `apps/api/test/auth.e2e-spec.ts`, `apps/api/test/profile.e2e-spec.ts`
 **Tests first:** `pnpm --filter api test:e2e auth profile`. Expected red: `PATCH /profile` and `POST /auth/password` answer 404 as missing routes; registration accepts a 101 character name (201 instead of 400). "another user's token never changes this user's profile" is expected green before implementation only if it asserts nothing but the other user's unchanged name, because a missing route changes nothing; it must first assert that the owner's own `PATCH` succeeds, so a missing route turns it red.
-**Red run:** not yet run.
+**Red run:** 2026-11-03, against the dev database. Every new test of task 1 ([#32](https://github.com/ydunets/claude-advanced/issues/32)) failed on an assertion:
+
+- `pnpm --filter api test:e2e auth profile` (7 failed, 18 passed):
+  - `auth.e2e-spec.ts` "rejects a registration with a name over 100 characters": expected 400, got 201.
+  - `profile.e2e-spec.ts` "updates the name and trims surrounding spaces": expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects an empty or spaces-only name" (both cases of the `it.each` table): expected 400, got 404.
+  - `profile.e2e-spec.ts` "rejects a name over 100 characters": expected 400, got 404.
+  - `profile.e2e-spec.ts` "another user's token never changes this user's profile": the owner's own `PATCH` expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects a request without a token" (`PATCH`): expected 401, got 404.
+
+2026-11-03, against the dev database. Every new test of task 2 ([#33](https://github.com/ydunets/claude-advanced/issues/33)) failed on an assertion:
+
+- `pnpm --filter api test:e2e auth` (4 failed, 17 passed):
+  - `auth.e2e-spec.ts` "changes the password so only the new one signs in": expected 200, got 404.
+  - `auth.e2e-spec.ts` "refuses a wrong current password and keeps the old one": expected 403, got 404.
+  - `auth.e2e-spec.ts` "refuses a new password under 8 characters": expected 400, got 404.
+  - `auth.e2e-spec.ts` "refuses a new password equal to the current one": expected 400, got 404.
+
+2026-11-03, against the dev database. The new test of task 3 ([#34](https://github.com/ydunets/claude-advanced/issues/34)) failed on an assertion:
+
+- `pnpm --filter api test:e2e auth -t "earlier tokens"` (1 failed, 22 skipped):
+  - `auth.e2e-spec.ts` "a password change rejects earlier tokens and accepts the returned one": the token issued before the change on `GET /profile` expected 401, got 200.
+
+2026-11-03, after the milestone review of [PR #48](https://github.com/ydunets/claude-advanced/pull/48). Task 2's "rejects a request without a token" was added during its code review, after the red run above, so it was made to fail once by removing the `POST /auth/password` route locally; the route was then restored. The tests added for the review findings failed on an assertion against the code before their fix:
+
+- `pnpm --filter api test:e2e auth -t "without a token"`, route removed (1 failed, 22 skipped):
+  - `auth.e2e-spec.ts` "rejects a request without a token" (`POST /auth/password`): expected 401, got 404.
+- `pnpm --filter api test:e2e auth -t "concurrent changes"` (1 failed, 23 skipped):
+  - `auth.e2e-spec.ts` "concurrent changes from one token let exactly one succeed": expected one 200, got two.
+- `pnpm --filter api test:e2e auth -t "limits"` (2 failed, 24 skipped):
+  - `auth.e2e-spec.ts` "limits sign-in attempts per account": the attempt after the limit expected 429, got 200.
+  - `auth.e2e-spec.ts` "limits password change attempts per account": the attempt after the limit expected 429, got 200.
 
 **Tasks:**
 

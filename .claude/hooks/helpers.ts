@@ -1,0 +1,277 @@
+import { execFileSync } from 'node:child_process';
+import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+
+import {
+  COMMANDS,
+  COMPLETED_REASON,
+  CONFIG_PATH,
+  ERROR_CODES,
+  INITIAL_ITERATION,
+  ISSUE_LIST_LIMIT,
+  ISSUE_OPEN_STATE,
+  LOG_PREFIX,
+  PLACEHOLDERS,
+  PULL_REQUEST_PLACEHOLDER,
+} from './constants.ts';
+import type { IssueState, Placeholder } from './constants.ts';
+
+export interface RalphConfig {
+  milestone: string;
+  branch: string;
+  prompt: string;
+  maxIteration: number;
+  maxTurns: number;
+  // Optional: without it the hook skips the milestone review.
+  reviewPrompt?: string;
+}
+
+export type ReviewConfig = RalphConfig & { reviewPrompt: string };
+
+export interface StopEvent {
+  stop_hook_active?: boolean;
+}
+
+export interface Issue {
+  number: number;
+  title: string;
+  stateReason: string;
+}
+
+interface IterationState {
+  iteration: number;
+}
+
+interface FieldRule {
+  isValid: (value: unknown) => boolean;
+  requirement: string;
+}
+
+const NON_EMPTY_STRING: FieldRule = {
+  isValid: (value) => typeof value === 'string' && value !== '',
+  requirement: 'a non-empty string',
+};
+const POSITIVE_INTEGER: FieldRule = {
+  isValid: (value) => Number.isInteger(value) && (value as number) > 0,
+  requirement: 'a positive integer',
+};
+const OPTIONAL_REVIEW_PROMPT: FieldRule = {
+  isValid: (value) =>
+    value === undefined ||
+    (typeof value === 'string' && value.includes(PULL_REQUEST_PLACEHOLDER)),
+  requirement: `absent or a string containing ${PULL_REQUEST_PLACEHOLDER}`,
+};
+
+// A declarative schema: each config field names the rule it must satisfy.
+const CONFIG_SCHEMA = {
+  milestone: NON_EMPTY_STRING,
+  branch: NON_EMPTY_STRING,
+  prompt: NON_EMPTY_STRING,
+  maxIteration: POSITIVE_INTEGER,
+  maxTurns: POSITIVE_INTEGER,
+  reviewPrompt: OPTIONAL_REVIEW_PROMPT,
+} satisfies Record<keyof RalphConfig, FieldRule>;
+
+// Everything the hook prints goes to stderr; stdout is Claude Code's channel.
+export function logRalph(message: string): void {
+  console.error(`${LOG_PREFIX} ${message}`);
+}
+
+export function isErrnoException(
+  error: unknown,
+): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
+}
+
+export function readStopEvent(): StopEvent {
+  const input = readFileSync(0, 'utf8');
+  return input ? (JSON.parse(input) as StopEvent) : {};
+}
+
+function assertConfig(raw: unknown): asserts raw is RalphConfig {
+  if (typeof raw !== 'object' || raw === null) {
+    throw new Error(`${CONFIG_PATH}: must contain a JSON object`);
+  }
+  const fields = raw as Record<string, unknown>;
+  for (const [field, rule] of Object.entries(CONFIG_SCHEMA)) {
+    if (!rule.isValid(fields[field])) {
+      throw new Error(`${CONFIG_PATH}: "${field}" must be ${rule.requirement}`);
+    }
+  }
+  const missingPlaceholder = Object.values(PLACEHOLDERS).find(
+    (placeholder) => !(fields.prompt as string).includes(placeholder),
+  );
+  if (missingPlaceholder) {
+    throw new Error(
+      `${CONFIG_PATH}: "prompt" must contain ${missingPlaceholder}`,
+    );
+  }
+}
+
+// Parse, don't validate: the rest of the hook only ever sees a RalphConfig.
+export function readConfig(): RalphConfig {
+  const raw: unknown = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+  assertConfig(raw);
+  return raw;
+}
+
+export function runCommand(command: string, args: string[]): string {
+  return execFileSync(command, args, { encoding: 'utf8' }).trim();
+}
+
+function runJsonCommand<T>(command: string, args: string[]): T {
+  return JSON.parse(runCommand(command, args)) as T;
+}
+
+export const runGh = (...args: string[]): string =>
+  runCommand(COMMANDS.GH, args);
+export const runGit = (...args: string[]): string =>
+  runCommand(COMMANDS.GIT, args);
+
+export function listMilestoneIssues(
+  milestone: string,
+  state: IssueState,
+): Issue[] {
+  return runJsonCommand<Issue[]>(COMMANDS.GH, [
+    'issue',
+    'list',
+    `--milestone=${milestone}`,
+    `--state=${state}`,
+    `--limit=${ISSUE_LIST_LIMIT}`,
+    '--json=number,title,stateReason',
+  ]).toSorted((first, second) => first.number - second.number);
+}
+
+export function isIssueCompleted(issue: Issue): boolean {
+  return issue.stateReason === COMPLETED_REASON;
+}
+
+export function isIssueOpen(issueNumber: number): boolean {
+  const issue = runJsonCommand<{ state: string }>(COMMANDS.GH, [
+    'issue',
+    'view',
+    String(issueNumber),
+    '--json=state',
+  ]);
+  return issue.state === ISSUE_OPEN_STATE;
+}
+
+export function isOnBranch(branch: string): boolean {
+  return runGit('branch', '--show-current') === branch;
+}
+
+// Untracked files are ignored: they never reach a commit unless added.
+export function isWorkingTreeClean(): boolean {
+  return runGit('status', '--porcelain', '--untracked-files=no') === '';
+}
+
+// Any pull request, merged or closed included, means the milestone shipped.
+export function hasPullRequest(branch: string): boolean {
+  return (
+    runJsonCommand<unknown[]>(COMMANDS.GH, [
+      'pr',
+      'list',
+      `--head=${branch}`,
+      '--state=all',
+      '--json=number',
+    ]).length > 0
+  );
+}
+
+export function getGitStatePath(fileName: string): string {
+  return runGit('rev-parse', '--path-format=absolute', '--git-path', fileName);
+}
+
+// The exclusive create is atomic, so two loops never both acquire the lock.
+function acquireLock(lockPath: string): boolean {
+  try {
+    writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+    return true;
+  } catch (error) {
+    if (isErrnoException(error) && error.code === ERROR_CODES.ALREADY_EXISTS) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+// Execute Around: the lock is released however the work ends.
+export function withLock(lockPath: string, work: () => void): boolean {
+  if (!acquireLock(lockPath)) {
+    return false;
+  }
+  try {
+    work();
+  } finally {
+    unlinkSync(lockPath);
+  }
+  return true;
+}
+
+export function readIteration(iterationPath: string): number {
+  try {
+    const state = JSON.parse(
+      readFileSync(iterationPath, 'utf8'),
+    ) as IterationState;
+    return state.iteration;
+  } catch (error) {
+    if (isErrnoException(error) && error.code === ERROR_CODES.NOT_FOUND) {
+      return INITIAL_ITERATION;
+    }
+    throw error;
+  }
+}
+
+export function writeIteration(iterationPath: string, iteration: number): void {
+  const state: IterationState = { iteration };
+  writeFileSync(iterationPath, JSON.stringify(state));
+}
+
+export function isReviewEnabled(config: RalphConfig): config is ReviewConfig {
+  return config.reviewPrompt !== undefined;
+}
+
+function fillPlaceholders(
+  template: string,
+  values: Record<string, string>,
+): string {
+  return Object.entries(values).reduce(
+    (text, [placeholder, value]) => text.replaceAll(placeholder, value),
+    template,
+  );
+}
+
+export function buildSessionPrompt(
+  { prompt, milestone, branch }: RalphConfig,
+  issueNumber: number,
+): string {
+  const values: Record<Placeholder, string> = {
+    [PLACEHOLDERS.MILESTONE]: milestone,
+    [PLACEHOLDERS.BRANCH]: branch,
+    [PLACEHOLDERS.ISSUE]: String(issueNumber),
+  };
+  return fillPlaceholders(prompt, values);
+}
+
+export function buildReviewPrompt(
+  { reviewPrompt, milestone, branch }: ReviewConfig,
+  pullRequestUrl: string,
+): string {
+  return fillPlaceholders(reviewPrompt, {
+    [PLACEHOLDERS.MILESTONE]: milestone,
+    [PLACEHOLDERS.BRANCH]: branch,
+    [PULL_REQUEST_PLACEHOLDER]: pullRequestUrl,
+  });
+}
+
+// Issue titles stay out of the body: a title such as "closes #12" would close
+// an unrelated issue on merge.
+export function buildPullRequestBody(
+  milestone: string,
+  issues: Issue[],
+): string {
+  return [
+    `All issues of the milestone "${milestone}" are closed.`,
+    '',
+    ...issues.map((issue) => `Closes #${issue.number}`),
+  ].join('\n');
+}

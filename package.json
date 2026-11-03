@@ -13,15 +13,17 @@
     "start": "pnpm --parallel --filter \"./apps/*\" run start",
     "lint": "oxlint --type-aware",
     "lint:fix": "oxlint --type-aware --fix",
-    "typecheck": "pnpm --recursive run typecheck",
+    "typecheck": "pnpm --recursive run typecheck && tsc -p .claude/hooks",
     "test": "pnpm --recursive --if-present run test",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "db:up": "docker compose up -d --wait postgres",
     "db:down": "docker compose down",
+    "ralph": "RALPH_LOOP=1 node .claude/hooks/stop.ts < /dev/null",
     "prepare": "husky"
   },
   "devDependencies": {
+    "@types/node": "^24.19.2",
     "husky": "^9.1.7",
     "oxfmt": "^0.75.0",
     "oxlint": "^1.90.0",

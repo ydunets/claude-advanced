@@ -1,6 +1,6 @@
 # video-meetings
 
-A pnpm workspace containing two applications. The API implements registration (name, email and password) and login that issue JWTs, a JWT protected profile (`GET /profile` returns the name and email), and a JWT protected meetings module (create, list, get by id; upload, list and download a meeting's files, stored on the API server's disk under `FILES_STORAGE_DIR`; uploads are limited to `MAX_FILE_SIZE_BYTES` and an allowed format list). It follows CQRS through `@nestjs/cqrs`, as described in `apps/api/CLAUDE.md`. The web app has `/register`, `/login`, a protected home page `/` that shows the user's name and initials linked to a protected profile page `/profile`, and a protected meeting page `/meetings/[id]`; it calls the API from Server Actions, Server Components and Route Handlers (server to server, so the API needs no CORS) using `API_URL` from `apps/web/.env`. File uploads and downloads go through the Route Handlers `POST /meetings/[id]/files` and `GET /meetings/[id]/files/[fileId]`, which stream them to and from the API; the upload form shows progress and refuses a file over `MAX_UPLOAD_SIZE_BYTES` from `apps/web/.env` before sending it.
+A pnpm workspace containing two applications. The API implements registration (name, email and password) and login that issue JWTs, a JWT protected profile (`GET /profile` returns the name and email, `PATCH /profile` updates the name), a JWT protected password change (`POST /auth/password` confirms the current password, returns a new token and revokes every earlier one through a per-user token version; a concurrent second change answers 409), per-account limits on sign-in and password change attempts (`AUTH_ATTEMPT_LIMIT` within `AUTH_ATTEMPT_WINDOW_SECONDS`, then 429), and a JWT protected meetings module (create, list, get by id; upload, list and download a meeting's files, stored on the API server's disk under `FILES_STORAGE_DIR`; uploads are limited to `MAX_FILE_SIZE_BYTES` and an allowed format list). It follows CQRS through `@nestjs/cqrs`, as described in `apps/api/CLAUDE.md`. The web app has `/register`, `/login`, a protected home page `/` that shows the user's name and initials linked to a protected profile page `/profile`, and a protected meeting page `/meetings/[id]`; it calls the API from Server Actions, Server Components and Route Handlers (server to server, so the API needs no CORS) using `API_URL` from `apps/web/.env`. File uploads and downloads go through the Route Handlers `POST /meetings/[id]/files` and `GET /meetings/[id]/files/[fileId]`, which stream them to and from the API; the upload form shows progress and refuses a file over `MAX_UPLOAD_SIZE_BYTES` from `apps/web/.env` before sending it.
 
 | Path       | Stack                                              | Default port |
 | ---------- | -------------------------------------------------- | ------------ |
@@ -15,10 +15,11 @@ Run every command from the repository root.
 - `pnpm dev`, `pnpm dev:web`, `pnpm dev:api`: start both apps, or one of them.
 - `pnpm build`: build both apps.
 - `pnpm lint`: run Oxlint once over the repository (type-aware). `pnpm lint:fix` applies autofixes.
-- `pnpm typecheck`: run the TypeScript compiler in each app.
+- `pnpm typecheck`: run the TypeScript compiler in each app and over the Ralph Loop Stop hook in `.claude/hooks/` (TypeScript that Node runs directly through type stripping, Node 22.18 or later).
 - `pnpm test`: run the unit tests.
 - `pnpm format` and `pnpm format:check`: Oxfmt.
 - `pnpm db:up` and `pnpm db:down`: start (and wait for health) or stop the Postgres 17 container defined in `compose.yaml` (port 5432, volume `postgres-data`). Docker with Compose v2 is required. Container settings come from the root `.env` (template: `.env.example`); `compose.yaml` has no defaults and refuses to start without them.
+- `pnpm ralph`: run the Ralph Loop Stop hook directly for the milestone and branch in `.claude/ralph-config.json`, with no seed session. The iteration counter in the git directory (`ralph-iteration.json`) is never reset by the script; deleting it allows another `maxIteration` sessions.
 - `pnpm --filter api db:migrate`: apply the Drizzle migrations in `apps/api/drizzle/`. `db:generate` creates a new migration after a schema change.
 - `pnpm --filter api test:e2e`: run the API end-to-end suite. It needs a running, migrated database and `apps/api/.env`.
 - `pnpm --filter web test:e2e`: run the web app's Playwright suite. It needs the running web app and API (`pnpm dev`), a migrated database, `apps/web/.env` and Chromium (`pnpm --filter web exec playwright install chromium`, once).
@@ -31,6 +32,7 @@ Run every command from the repository root.
 - Oxfmt settings live in the root `.oxfmtrc.json` (single quotes, trailing commas, 80 columns). Prettier is not used.
 - A Husky `pre-commit` hook (`.husky/pre-commit`, installed by the root `prepare` script) runs `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm --filter api test:e2e` and `pnpm --filter web test:e2e`; a failing check blocks the commit, so committing needs a migrated database and a running `pnpm dev`; when Postgres is unreachable, the hook stops before the e2e suites and asks for `pnpm db:up`. A `pre-push` hook (`.husky/pre-push`) runs `pnpm lint`.
 - A Claude Code `PostToolUse` hook in `.claude/settings.json` runs Oxfmt on every file Claude edits or writes.
+- `permissions.allow` in `.claude/settings.json` pre-approves the edits, `pnpm`, `git` and `gh` commands that the headless Ralph Loop sessions need, and `permissions.deny` blocks pushing, rebasing, opening and merging pull requests. Both lists apply to interactive sessions too.
 - Add a dependency to the app that needs it with `pnpm --filter <web|api> add <package>`.
 - Build outputs (`dist`, `.next`) and `.env*` files are ignored by git. Every configurable value lives in an env file, never as a default in code or `compose.yaml`; add each new variable to the matching `.env.example`.
 - The two apps do not share code yet. Introduce a `packages/` workspace only when real shared code exists.
@@ -48,6 +50,11 @@ Update them whenever a change:
 - modifies a convention recorded in these files.
 
 Keep each statement accurate rather than exhaustive: correct or delete outdated lines instead of appending notes. State in the final report which documents were changed, or that none required a change.
+
+## File Upload research
+
+- [Express and multer](documents/researches/meeting-file-upload.md)
+- [NestJS with Fastify](documents/researches/meeting-file-upload-fastify.md)
 
 ## Verification
 

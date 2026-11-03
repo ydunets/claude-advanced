@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module.js';
 import { CreateUserHandler } from './commands/create-user.handler.js';
+import { UpdateUserNameHandler } from './commands/update-user-name.handler.js';
+import { UpdateUserPasswordHandler } from './commands/update-user-password.handler.js';
 import { FindUserByEmailHandler } from './queries/find-user-by-email.handler.js';
 import { FindUserByIdHandler } from './queries/find-user-by-id.handler.js';
 
@@ -8,6 +10,12 @@ import { FindUserByIdHandler } from './queries/find-user-by-id.handler.js';
 // query buses, so they depend on the messages, not on this module's providers.
 @Module({
   imports: [DatabaseModule],
-  providers: [CreateUserHandler, FindUserByEmailHandler, FindUserByIdHandler],
+  providers: [
+    CreateUserHandler,
+    UpdateUserNameHandler,
+    UpdateUserPasswordHandler,
+    FindUserByEmailHandler,
+    FindUserByIdHandler,
+  ],
 })
 export class UsersModule {}

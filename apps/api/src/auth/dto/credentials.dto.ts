@@ -1,4 +1,5 @@
 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsUserName } from './user-name.js';
 
 export const MIN_PASSWORD_LENGTH = 8;
 
@@ -10,8 +11,7 @@ export class RegisterDto {
   @MinLength(MIN_PASSWORD_LENGTH)
   password: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsUserName()
   name: string;
 }
 

@@ -9,6 +9,8 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
+export const INITIAL_TOKEN_VERSION = 0;
+
 export const users = pgTable(
   'users',
   {
@@ -16,6 +18,9 @@ export const users = pgTable(
     email: text('email').notNull(),
     name: text('name').notNull(),
     passwordHash: text('password_hash').notNull(),
+    tokenVersion: integer('token_version')
+      .notNull()
+      .default(INITIAL_TOKEN_VERSION),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

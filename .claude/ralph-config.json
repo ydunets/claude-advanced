@@ -1,0 +1,8 @@
+{
+  "milestone": "User Profile, Phase 2: Name update and password change (API)",
+  "branch": "feat/user-profile-phase-2",
+  "maxIteration": 2,
+  "maxTurns": 50,
+  "prompt": "Read .claude/ralph.md and follow its rules. Your task is GitHub issue #{issue} in the milestone \"{milestone}\", on the branch \"{branch}\".",
+  "reviewPrompt": "Read .claude/ralph-review.md and follow its rules. Review the pull request {pullRequest} of the milestone \"{milestone}\" on the branch \"{branch}\"."
+}
