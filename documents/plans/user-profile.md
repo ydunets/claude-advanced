@@ -209,7 +209,18 @@ Rules for every phase:
 **Depends on:** Phase 1 (`/profile`, `findProfile`, `UserAvatar`, `apps/web/e2e/profile.spec.ts`), Phase 2 (`PATCH /profile`, `POST /auth/password`)
 **Read first:** `apps/web/src/app/(auth)/credentials-form.tsx`, `credentials.ts`, `actions.ts` (Server Action and field error pattern), `apps/web/src/lib/session.ts` (`setAccessToken`), `apps/web/src/app/profile/page.tsx`, `apps/web/e2e/profile.spec.ts`, `apps/web/e2e/test-users.ts`
 **Tests first:** `pnpm --filter web test:e2e profile`. Expected red: the profile page has no editable "Name" field and no password form, so each test fails on a missing element.
-**Red run:** not yet run.
+**Red run:** 2026-11-03, against the running `pnpm dev` and the dev database. Every new test of task 1 ([#36](https://github.com/ydunets/claude-advanced/issues/36)) failed on an assertion:
+
+- `pnpm --filter web test:e2e profile` (5 failed, 2 passed):
+  - `profile.spec.ts` "a saved name shows on the profile and home pages after a reload": no `Name` field (`locator.fill` timeout).
+  - `profile.spec.ts` "an empty or spaces-only name is refused and the saved name is unchanged" (empty and spaces-only cases): no `Name` field.
+  - `profile.spec.ts` "a name over 100 characters is refused with the limit": no `Name` field.
+  - `profile.spec.ts` "surrounding spaces are trimmed and the initials show AM": no `Name` field.
+
+The visual check then found that the first corrected submit after a refused name was lost: React Aria clears the server error on blur, so the message disappears and the button moves up between mouse down and mouse up. The test added for it failed on an assertion against the form before the fix:
+
+- `pnpm --filter web test:e2e profile -g "corrected submit"` (1 failed):
+  - `profile.spec.ts` "the first corrected submit after a refused name saves it": "Your name was saved." not found.
 
 **Tasks:**
 

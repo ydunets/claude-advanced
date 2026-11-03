@@ -1,5 +1,12 @@
 import { redirect } from 'next/navigation';
-import { getApiUrl, HTTP_STATUS } from '@/lib/api';
+import {
+  GENERIC_ERROR,
+  getApiUrl,
+  HTTP_STATUS,
+  readValidationMessage,
+  UNREACHABLE_ERROR,
+} from '@/lib/api';
+import { getFormText } from '@/lib/form-data';
 import { ROUTES } from '@/lib/routes';
 import { setAccessToken } from '@/lib/session';
 
@@ -11,19 +18,6 @@ export type CredentialsState = {
 };
 
 type Failure = Pick<CredentialsState, 'fieldErrors' | 'formError'>;
-
-const GENERIC_ERROR = 'Something went wrong. Please try again later.';
-
-function getFormText(formData: FormData, name: string): string {
-  const value = formData.get(name);
-  return typeof value === 'string' ? value : '';
-}
-
-// Nest's ValidationPipe returns `message` as a list of rule violations.
-function toValidationMessage(body: unknown): string {
-  const message = (body as { message?: unknown } | null)?.message;
-  return Array.isArray(message) ? message.join('. ') : GENERIC_ERROR;
-}
 
 // Posts { email, password } to an auth endpoint, plus { name } when the form
 // has a name field (registration only). On the expected status it
@@ -49,18 +43,14 @@ export async function submitCredentials(
       body: JSON.stringify({ name, email, password }),
     });
   } catch {
-    return {
-      ...failure,
-      formError: 'The server is unreachable right now. Please try again.',
-    };
+    return { ...failure, formError: UNREACHABLE_ERROR };
   }
 
   if (response.status in failures) {
     return { ...failure, ...failures[response.status] };
   }
   if (response.status === HTTP_STATUS.BAD_REQUEST) {
-    const body: unknown = await response.json().catch(() => null);
-    return { ...failure, formError: toValidationMessage(body) };
+    return { ...failure, formError: await readValidationMessage(response) };
   }
   if (response.status !== successStatus) {
     return { ...failure, formError: GENERIC_ERROR };

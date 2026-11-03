@@ -60,6 +60,35 @@ export function fetchFromApi(
   });
 }
 
+export function sendJsonToApi(
+  accessToken: string,
+  endpoint: string,
+  method: 'POST' | 'PATCH',
+  body: unknown,
+): Promise<Response> {
+  return fetch(`${getApiUrl()}${endpoint}`, {
+    method,
+    headers: {
+      Authorization: buildBearerAuthorization(accessToken),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+export const GENERIC_ERROR = 'Something went wrong. Please try again later.';
+export const UNREACHABLE_ERROR =
+  'The server is unreachable right now. Please try again.';
+
+// Nest's ValidationPipe returns `message` as a list of rule violations.
+export async function readValidationMessage(
+  response: Response,
+): Promise<string> {
+  const body: unknown = await response.json().catch(() => null);
+  const message = (body as { message?: unknown } | null)?.message;
+  return Array.isArray(message) ? message.join('. ') : GENERIC_ERROR;
+}
+
 // Resolves to null when the API rejects the token (expired or forged), so the
 // caller can send the visitor back to the login page.
 export async function findApiJson<T>(

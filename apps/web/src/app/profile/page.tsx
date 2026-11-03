@@ -1,3 +1,4 @@
+import { Card } from '@heroui/react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
@@ -6,6 +7,7 @@ import { ROUTES } from '@/lib/routes';
 import { findAccessToken } from '@/lib/session';
 import { MeetingPageShell } from '../meetings/[id]/meeting-page-shell';
 import { UserAvatar } from '../user-avatar';
+import { NameForm } from './name-form';
 
 export const metadata: Metadata = {
   title: 'Your profile · Video Meetings',
@@ -34,12 +36,23 @@ async function ProfileContent(): Promise<React.JSX.Element> {
   }
 
   return (
-    <main className="mt-12 flex items-center gap-4">
-      <UserAvatar name={profile.name} size="lg" />
-      <div className="flex min-w-0 flex-col gap-1">
-        <h1 className="text-2xl font-semibold break-words">{profile.name}</h1>
-        <p className="break-all text-muted">{profile.email}</p>
+    <main className="mt-12 flex flex-col gap-10">
+      <div className="flex items-center gap-4">
+        <UserAvatar name={profile.name} size="lg" />
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="text-2xl font-semibold break-words">{profile.name}</h1>
+          <p className="break-all text-muted">{profile.email}</p>
+        </div>
       </div>
+
+      <section aria-labelledby="edit-name" className="flex flex-col gap-4">
+        <h2 id="edit-name" className="text-base font-semibold">
+          Edit your name
+        </h2>
+        <Card className="p-5 shadow-none">
+          <NameForm name={profile.name} />
+        </Card>
+      </section>
     </main>
   );
 }
