@@ -217,9 +217,9 @@ Rules for every phase:
    Files: create `apps/web/src/app/profile/name-form.tsx`, `apps/web/src/app/profile/actions.ts`; modify `apps/web/src/app/profile/page.tsx`, `apps/web/src/lib/api.ts`.
    Proved by: `apps/web/e2e/profile.spec.ts`, "a saved name shows on the profile and home pages after a reload", "an empty or spaces-only name is refused and the saved name is unchanged", "a name over 100 characters is refused with the limit", "surrounding spaces are trimmed and the initials show AM".
    Issue: [#36](https://github.com/ydunets/claude-advanced/issues/36)
-2. A password form on `/profile` with current password, new password and confirmation: a mismatch is refused in the form; the Server Action calls `POST /auth/password`, shows the 403 and 400 messages, and stores the returned token in the cookie on success.
+2. A password form on `/profile` with current password, new password and confirmation: a mismatch is refused in the form; the Server Action calls `POST /auth/password`, shows the 403 and 400 messages, and stores the returned token in the cookie on success. It also shows its own message for 409 (another request changed the password at the same moment; reload the page before trying again) and for 429 (too many attempts; try again later), and neither status signs this browser out or replaces its cookie.
    Files: create `apps/web/src/app/profile/password-form.tsx`; modify `apps/web/src/app/profile/actions.ts`, `apps/web/src/app/profile/page.tsx`.
-   Proved by: `apps/web/e2e/profile.spec.ts`, "a password change keeps this browser signed in and only the new password signs in", "a password change sends another browser to the login page" (two browser contexts), "a wrong current password shows an error and the old password still works", "a new password under 8 characters is refused", "different new password entries are refused", "a new password equal to the current one is refused".
+   Proved by: `apps/web/e2e/profile.spec.ts`, "a password change keeps this browser signed in and only the new password signs in", "a password change sends another browser to the login page" (two browser contexts), "a wrong current password shows an error and the old password still works", "a new password under 8 characters is refused", "different new password entries are refused", "a new password equal to the current one is refused", "repeated wrong current passwords show the try-later message and keep this browser signed in" (submits until the 429 message appears, so it does not depend on the API's `AUTH_ATTEMPT_LIMIT` value). The 409 message is proved by review, because a browser test cannot time two concurrent submits reliably.
    Issue: [#37](https://github.com/ydunets/claude-advanced/issues/37)
 3. Documentation: the profile forms and the token replacement after a password change in `apps/web/CLAUDE.md`.
    Files: modify `apps/web/CLAUDE.md`.
@@ -235,6 +235,7 @@ Rules for every phase:
 - " Anna Maria Lee " is saved as "Anna Maria Lee" and the placeholder shows "AM".
 - A password change keeps this browser signed in, the old password fails and the new one succeeds; another browser is sent to sign in.
 - A wrong current password, a short new password, different entries and an unchanged password are each refused with their error.
+- A concurrent change (409) and too many attempts (429) each show their own message, and this browser stays signed in.
 - The "Red run" lists every new test as red, or as green before implementation with its recorded forced failure.
 - `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm --filter web test:e2e` pass.
 - The visual check and design review from `apps/web/CLAUDE.md` pass for `/profile`, including each error state.
