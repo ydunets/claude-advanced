@@ -70,7 +70,11 @@ describe('Profile (e2e)', () => {
         .auth(registration.body.accessToken as string, { type: 'bearer' })
         .expect(HttpStatus.OK);
 
-      expect(response.body).toEqual({ name: VALID_NAME, email });
+      expect(response.body).toEqual({
+        name: VALID_NAME,
+        email,
+        avatarId: null,
+      });
     });
 
     it('rejects a request without a token', async () => {
@@ -91,6 +95,7 @@ describe('Profile (e2e)', () => {
       expect(response.body).toEqual({
         name: UPDATED_NAME,
         email: expect.any(String),
+        avatarId: null,
       });
       expect(await getProfileName(token)).toBe(UPDATED_NAME);
     });

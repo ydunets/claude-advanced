@@ -21,6 +21,9 @@ export const users = pgTable(
     tokenVersion: integer('token_version')
       .notNull()
       .default(INITIAL_TOKEN_VERSION),
+    // Both are null until the first upload and are always written together.
+    avatarStorageName: text('avatar_storage_name'),
+    avatarMimeType: text('avatar_mime_type'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

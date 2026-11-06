@@ -57,6 +57,8 @@ export class JwtAuthGuard implements CanActivate {
       email: user.email,
       name: user.name,
       tokenVersion: user.tokenVersion,
+      avatarStorageName: user.avatarStorageName,
+      avatarMimeType: user.avatarMimeType,
     };
     return true;
   }

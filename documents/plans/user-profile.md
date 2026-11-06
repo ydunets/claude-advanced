@@ -261,14 +261,18 @@ The first green attempt kept the field errors hidden: React's post-action form r
 
 ## Phase 4: Avatar upload, removal and owner-only serving (API)
 
-**Status:** pending
+**Status:** in progress
 **Milestone:** [User Profile, Phase 4: Avatar upload, removal and owner-only serving (API)](https://github.com/ydunets/claude-advanced/milestone/9)
 **Goal:** the API stores, replaces, removes and serves a user's avatar under the format and size rules, only to its owner, and leaves no orphaned file on disk.
 **Touches:** database, backend, documentation
 **Depends on:** Phase 1 (`profile/`, `GET /profile`, `ProfileResponse`, `FindUserByIdQuery`, `apps/api/test/profile.e2e-spec.ts`)
 **Read first:** `apps/api/src/meetings/meetings.module.ts` (`MulterModule.registerAsync`, `fileFilter`), `allowed-file-formats.ts`, `file-size-limit.ts`, `file-size-limit.interceptor.ts`, `commands/upload-meeting-file.handler.ts` (stored file cleanup), `queries/get-meeting-file.handler.ts` (streaming), `apps/api/test/meeting-files.e2e-spec.ts` (stored file counts, size limit test)
 **Tests first:** `pnpm --filter api test:e2e profile`. Expected red: `PUT /profile/avatar`, `DELETE /profile/avatar` and `GET /profile/avatar` answer 404 as missing routes, and `GET /profile` has no `avatarId`. "returns 404 when the user has no avatar" is expected green before implementation, because the missing route already answers 404; apply the forced-failure rule.
-**Red run:** not yet run.
+**Red run:** 2026-11-06, against the dev database. The changed tests of task 1 ([#39](https://github.com/ydunets/claude-advanced/issues/39)) failed on an assertion; its upload test needs the route of task 2, so it is recorded there:
+
+- `pnpm --filter api test:e2e profile` (2 failed, 6 passed):
+  - `profile.e2e-spec.ts` "returns the signed-in user's name and email" (now expects `avatarId: null`): the body had no `avatarId`.
+  - `profile.e2e-spec.ts` "updates the name and trims surrounding spaces" (now expects `avatarId: null`): the body had no `avatarId`.
 
 **Tasks:**
 
