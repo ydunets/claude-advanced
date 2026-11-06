@@ -532,7 +532,8 @@ test('a GIF or a JPEG over 5 MB is refused with the formats and the limit and th
   // A sparse file: one byte over the limit without writing 5 MB to disk.
   const oversizedAvatarPath = testInfo.outputPath(OVERSIZED_AVATAR_NAME);
   await writeFile(oversizedAvatarPath, '');
-  await truncate(oversizedAvatarPath, MAX_AVATAR_SIZE_BYTES + 1);
+  const oversizedAvatarBytes = MAX_AVATAR_SIZE_BYTES + 1;
+  await truncate(oversizedAvatarPath, oversizedAvatarBytes);
   await saveAvatar(page, oversizedAvatarPath);
 
   await expect(getAvatarAlert(page)).toContainText(AVATAR_LIMIT_TEXT);

@@ -8,6 +8,11 @@ const RGB_BYTES_PER_PIXEL = 3;
 const NO_ROW_FILTER = 0;
 const CHUNK_LENGTH_BYTES = 4;
 const CHUNK_CRC_BYTES = 4;
+const HEADER_BYTES = 13;
+const HEADER_WIDTH_OFFSET = 0;
+const HEADER_HEIGHT_OFFSET = 4;
+const HEADER_BIT_DEPTH_OFFSET = 8;
+const HEADER_COLOR_TYPE_OFFSET = 9;
 
 function buildPngChunk(type: string, data: Buffer): Buffer {
   const length = Buffer.alloc(CHUNK_LENGTH_BYTES);
@@ -21,11 +26,11 @@ function buildPngChunk(type: string, data: Buffer): Buffer {
 // A valid PNG of random pixels, stored without compression, so its size is
 // close to width * height * 3 bytes and a browser can still decode it.
 export function createNoisePng(width: number, height: number): Buffer {
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(width, 0);
-  header.writeUInt32BE(height, 4);
-  header.writeUInt8(BIT_DEPTH, 8);
-  header.writeUInt8(RGB_COLOR_TYPE, 9);
+  const header = Buffer.alloc(HEADER_BYTES);
+  header.writeUInt32BE(width, HEADER_WIDTH_OFFSET);
+  header.writeUInt32BE(height, HEADER_HEIGHT_OFFSET);
+  header.writeUInt8(BIT_DEPTH, HEADER_BIT_DEPTH_OFFSET);
+  header.writeUInt8(RGB_COLOR_TYPE, HEADER_COLOR_TYPE_OFFSET);
   const rowBytes = width * RGB_BYTES_PER_PIXEL;
   const rows = Array.from({ length: height }, () =>
     Buffer.concat([Buffer.from([NO_ROW_FILTER]), randomBytes(rowBytes)]),
