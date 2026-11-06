@@ -21,6 +21,10 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CreateMeetingCommand } from './commands/create-meeting.command.js';
 import { UploadMeetingFileCommand } from './commands/upload-meeting-file.command.js';
 import { CreateMeetingDto } from './dto/create-meeting.dto.js';
+import {
+  CONTENT_TYPE_OPTIONS_HEADER,
+  NO_SNIFF,
+} from '../uploads/content-type-options.js';
 import { createFileSizeLimitInterceptor } from '../uploads/file-size-limit.interceptor.js';
 import { getMaxFileSizeBytes } from './file-size-limit.js';
 import type { MeetingFileResponse } from './meeting-file-response.js';
@@ -32,8 +36,6 @@ import { ListMeetingsQuery } from './queries/list-meetings.query.js';
 
 const FILE_FIELD = 'file';
 const CONTENT_TYPE_HEADER = 'Content-Type';
-const CONTENT_TYPE_OPTIONS_HEADER = 'X-Content-Type-Options';
-const NO_SNIFF = 'nosniff';
 const FileSizeLimitInterceptor =
   createFileSizeLimitInterceptor(getMaxFileSizeBytes);
 

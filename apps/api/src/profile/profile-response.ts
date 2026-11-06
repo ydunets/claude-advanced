@@ -1,7 +1,7 @@
 import type { User } from '../database/schema.js';
 
-// avatarId changes on every upload, so the web app can put it in the image
-// address and never show a replaced avatar from the browser cache.
+// avatarId is the stored avatar's random name, so every upload changes it;
+// null without an avatar.
 export type ProfileResponse = {
   name: string;
   email: string;

@@ -315,6 +315,7 @@ describe('Profile (e2e)', () => {
       for (const formatName of ALLOWED_AVATAR_FORMAT_NAMES) {
         expect(response.body.message).toContain(formatName);
       }
+      expect(response.body.message).toContain(AVATAR_SIZE_LIMIT_TEXT);
       expect(await getProfileAvatarId(token)).toBe(avatarId);
       expect(await countStoredAvatars()).toBe(storedAvatarCount);
     });
@@ -323,6 +324,9 @@ describe('Profile (e2e)', () => {
       'rejects an image over 5 MB with the limit',
       async () => {
         const token = await registerAndGetToken(VALID_NAME);
+        await uploadAvatar(token, PNG_AVATAR).expect(HttpStatus.OK);
+        const avatarId = await getProfileAvatarId(token);
+        const storedAvatarCount = await countStoredAvatars();
         const maxAvatarSizeBytes = Number(
           app.get(ConfigService).getOrThrow<string>('MAX_AVATAR_SIZE_BYTES'),
         );
@@ -338,7 +342,8 @@ describe('Profile (e2e)', () => {
           message: expect.stringContaining(AVATAR_SIZE_LIMIT_TEXT),
           error: 'Payload Too Large',
         });
-        expect(await getProfileAvatarId(token)).toBeNull();
+        expect(await getProfileAvatarId(token)).toBe(avatarId);
+        expect(await countStoredAvatars()).toBe(storedAvatarCount);
       },
       OVERSIZED_UPLOAD_TIMEOUT_MS,
     );

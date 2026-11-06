@@ -294,6 +294,12 @@ The first green attempt kept the field errors hidden: React's post-action form r
   - `profile.e2e-spec.ts` "rejects a request without a token" (`DELETE /profile/avatar`): expected 401, got 404.
 - "returns 404 when the user has no avatar" was green before implementation, because the missing route already answered 404. After implementation, the no-avatar check in `GetAvatarHandler` was removed locally, and `pnpm --filter api test:e2e profile -t "no avatar"` (1 failed, 19 skipped) failed with: expected 404, got 500. The check was then restored.
 
+2026-11-06, after the review of both phase branches. The PRD asks for a refusal "with a message that names JPEG, PNG and WebP and the 5 MB limit", so the 415 message now states the limit too. The strengthened GIF test failed on an assertion against the code before the fix:
+
+- `pnpm --filter api test:e2e profile` (1 failed, 19 passed):
+  - `profile.e2e-spec.ts` "rejects a GIF with the allowed formats": the message did not contain `5 MB`.
+- "rejects an image over 5 MB with the limit" now starts from a stored avatar and asserts that the 413 keeps it and leaves the stored file count unchanged; it passed before any code change, because the behaviour was already right and only its proof was missing.
+
 **Tasks:**
 
 1. The nullable avatar columns on `users` with their migration, and `SetUserAvatarCommand` and `RemoveUserAvatarCommand` in `users/`, each returning the previous storage name so the caller deletes that file; `GET /profile` adds `avatarId`.

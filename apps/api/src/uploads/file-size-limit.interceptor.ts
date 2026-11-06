@@ -9,15 +9,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { catchError, throwError, type Observable } from 'rxjs';
-
-const BYTES_PER_MEGABYTE = 1024 * 1024;
-const MEGABYTE_FRACTION_DIGITS = 1;
+import { formatSizeInMegabytes } from './file-size.js';
 
 export function buildFileTooLargeMessage(maxFileSizeBytes: number): string {
-  const limitInMegabytes = Number(
-    (maxFileSizeBytes / BYTES_PER_MEGABYTE).toFixed(MEGABYTE_FRACTION_DIGITS),
-  );
-  return `The file is larger than the ${limitInMegabytes} MB limit.`;
+  return `The file is larger than the ${formatSizeInMegabytes(maxFileSizeBytes)} limit.`;
 }
 
 // Multer rejects an oversized file with a bare "File too large"; the returned

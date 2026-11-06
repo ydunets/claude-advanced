@@ -19,6 +19,10 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { AuthenticatedUser } from '../auth/auth-token.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import {
+  CONTENT_TYPE_OPTIONS_HEADER,
+  NO_SNIFF,
+} from '../uploads/content-type-options.js';
 import { createFileSizeLimitInterceptor } from '../uploads/file-size-limit.interceptor.js';
 import { getMaxAvatarSizeBytes } from './avatar-storage.js';
 import { RemoveAvatarCommand } from './commands/remove-avatar.command.js';
@@ -30,8 +34,6 @@ import { GetAvatarQuery } from './queries/get-avatar.query.js';
 import { GetProfileQuery } from './queries/get-profile.query.js';
 
 const AVATAR_FIELD = 'avatar';
-const CONTENT_TYPE_OPTIONS_HEADER = 'X-Content-Type-Options';
-const NO_SNIFF = 'nosniff';
 const AvatarSizeLimitInterceptor = createFileSizeLimitInterceptor(
   getMaxAvatarSizeBytes,
 );

@@ -5,7 +5,7 @@ import { AuthModule } from '../auth/auth.module.js';
 import { createFileFormatFilter } from '../uploads/file-format.js';
 import {
   ALLOWED_AVATAR_FORMATS,
-  DISALLOWED_AVATAR_FORMAT_MESSAGE,
+  buildDisallowedAvatarFormatMessage,
 } from './allowed-avatar-formats.js';
 import {
   getAvatarStorageDir,
@@ -23,14 +23,17 @@ import { GetProfileHandler } from './queries/get-profile.handler.js';
     AuthModule,
     MulterModule.registerAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        dest: getAvatarStorageDir(config),
-        limits: { fileSize: getMaxAvatarSizeBytes(config) },
-        fileFilter: createFileFormatFilter(
-          ALLOWED_AVATAR_FORMATS,
-          DISALLOWED_AVATAR_FORMAT_MESSAGE,
-        ),
-      }),
+      useFactory: (config: ConfigService) => {
+        const maxAvatarSizeBytes = getMaxAvatarSizeBytes(config);
+        return {
+          dest: getAvatarStorageDir(config),
+          limits: { fileSize: maxAvatarSizeBytes },
+          fileFilter: createFileFormatFilter(
+            ALLOWED_AVATAR_FORMATS,
+            buildDisallowedAvatarFormatMessage(maxAvatarSizeBytes),
+          ),
+        };
+      },
     }),
   ],
   controllers: [ProfileController],

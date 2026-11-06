@@ -29,7 +29,13 @@ export class GetAvatarHandler implements IQueryHandler<GetAvatarQuery> {
     if (!storedFile) {
       throw new NotFoundException(AVATAR_NOT_FOUND_MESSAGE);
     }
-    const { size } = await storedFile.stat();
+    let size: number;
+    try {
+      ({ size } = await storedFile.stat());
+    } catch (error) {
+      await storedFile.close();
+      throw error;
+    }
     return {
       mimeType: avatarMimeType,
       size,
