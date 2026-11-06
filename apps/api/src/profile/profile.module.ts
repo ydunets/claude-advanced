@@ -11,9 +11,11 @@ import {
   getAvatarStorageDir,
   getMaxAvatarSizeBytes,
 } from './avatar-storage.js';
+import { RemoveAvatarHandler } from './commands/remove-avatar.handler.js';
 import { UpdateProfileHandler } from './commands/update-profile.handler.js';
 import { UploadAvatarHandler } from './commands/upload-avatar.handler.js';
 import { ProfileController } from './profile.controller.js';
+import { GetAvatarHandler } from './queries/get-avatar.handler.js';
 import { GetProfileHandler } from './queries/get-profile.handler.js';
 
 @Module({
@@ -32,6 +34,12 @@ import { GetProfileHandler } from './queries/get-profile.handler.js';
     }),
   ],
   controllers: [ProfileController],
-  providers: [GetProfileHandler, UpdateProfileHandler, UploadAvatarHandler],
+  providers: [
+    GetProfileHandler,
+    UpdateProfileHandler,
+    UploadAvatarHandler,
+    RemoveAvatarHandler,
+    GetAvatarHandler,
+  ],
 })
 export class ProfileModule {}

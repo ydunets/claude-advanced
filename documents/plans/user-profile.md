@@ -284,6 +284,16 @@ The first green attempt kept the field errors hidden: React's post-action form r
   - `profile.e2e-spec.ts` "rejects a request without a file": expected 400, got 404.
   - `profile.e2e-spec.ts` "rejects a request without a token" (`PUT`): expected 401, got 404.
 
+2026-11-06, against the dev database. The new tests of task 3 ([#41](https://github.com/ydunets/claude-advanced/issues/41)) failed on an assertion, except the one the plan expected green:
+
+- `pnpm --filter api test:e2e profile` (5 failed, 15 passed):
+  - `profile.e2e-spec.ts` "serves the exact bytes of the owner's avatar": the upload expected 200, got 404.
+  - `profile.e2e-spec.ts` "another user's token never receives this user's avatar": the owner's upload expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects a request without a token" (`GET /profile/avatar`): expected 401, got 404.
+  - `profile.e2e-spec.ts` "removing the avatar deletes its file and answers 404 afterwards": the upload expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects a request without a token" (`DELETE /profile/avatar`): expected 401, got 404.
+- "returns 404 when the user has no avatar" was green before implementation, because the missing route already answered 404. After implementation, the no-avatar check in `GetAvatarHandler` was removed locally, and `pnpm --filter api test:e2e profile -t "no avatar"` (1 failed, 19 skipped) failed with: expected 404, got 500. The check was then restored.
+
 **Tasks:**
 
 1. The nullable avatar columns on `users` with their migration, and `SetUserAvatarCommand` and `RemoveUserAvatarCommand` in `users/`, each returning the previous storage name so the caller deletes that file; `GET /profile` adds `avatarId`.

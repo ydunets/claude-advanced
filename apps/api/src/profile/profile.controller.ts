@@ -1,10 +1,15 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Header,
+  HttpCode,
+  HttpStatus,
   ParseFilePipe,
   Patch,
   Put,
+  StreamableFile,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -16,13 +21,17 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { createFileSizeLimitInterceptor } from '../uploads/file-size-limit.interceptor.js';
 import { getMaxAvatarSizeBytes } from './avatar-storage.js';
+import { RemoveAvatarCommand } from './commands/remove-avatar.command.js';
 import { UpdateProfileCommand } from './commands/update-profile.command.js';
 import { UploadAvatarCommand } from './commands/upload-avatar.command.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import type { ProfileResponse } from './profile-response.js';
+import { GetAvatarQuery } from './queries/get-avatar.query.js';
 import { GetProfileQuery } from './queries/get-profile.query.js';
 
 const AVATAR_FIELD = 'avatar';
+const CONTENT_TYPE_OPTIONS_HEADER = 'X-Content-Type-Options';
+const NO_SNIFF = 'nosniff';
 const AvatarSizeLimitInterceptor = createFileSizeLimitInterceptor(
   getMaxAvatarSizeBytes,
 );
@@ -57,5 +66,23 @@ export class ProfileController {
     @UploadedFile(new ParseFilePipe()) file: Express.Multer.File,
   ): Promise<ProfileResponse> {
     return this.commandBus.execute(new UploadAvatarCommand(user, file));
+  }
+
+  @Get('avatar')
+  @Header(CONTENT_TYPE_OPTIONS_HEADER, NO_SNIFF)
+  async getAvatar(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StreamableFile> {
+    const avatar = await this.queryBus.execute(new GetAvatarQuery(user));
+    return new StreamableFile(avatar.content, {
+      type: avatar.mimeType,
+      length: avatar.size,
+    });
+  }
+
+  @Delete('avatar')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeAvatar(@CurrentUser() user: AuthenticatedUser): Promise<void> {
+    return this.commandBus.execute(new RemoveAvatarCommand(user.id));
   }
 }

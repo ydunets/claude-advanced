@@ -48,6 +48,18 @@ const GIF_AVATAR = {
   content: randomBytes(1024),
 };
 const OVERSIZED_UPLOAD_TIMEOUT_MS = 30_000;
+const NO_SNIFF = 'nosniff';
+// The browser's part type is ignored; the served type follows the extension.
+const UNTYPED_PART_MIME_TYPE = 'application/octet-stream';
+
+function collectBinaryBody(
+  response: request.Response,
+  callback: (error: Error | null, body: Buffer) => void,
+): void {
+  const chunks: Buffer[] = [];
+  response.on('data', (chunk: Buffer) => chunks.push(chunk));
+  response.on('end', () => callback(null, Buffer.concat(chunks)));
+}
 
 describe('Profile (e2e)', () => {
   let app: INestApplication<App>;
@@ -107,6 +119,20 @@ describe('Profile (e2e)', () => {
         filename: avatar.name,
         contentType: avatar.mimeType,
       });
+  }
+
+  function downloadAvatar(token: string) {
+    return request(app.getHttpServer())
+      .get(ENDPOINTS.AVATAR)
+      .auth(token, { type: 'bearer' })
+      .buffer(true)
+      .parse(collectBinaryBody);
+  }
+
+  function removeAvatar(token: string) {
+    return request(app.getHttpServer())
+      .delete(ENDPOINTS.AVATAR)
+      .auth(token, { type: 'bearer' });
   }
 
   function getAvatarStorageDir(): string {
@@ -334,6 +360,91 @@ describe('Profile (e2e)', () => {
           filename: PNG_AVATAR.name,
           contentType: PNG_AVATAR.mimeType,
         })
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+  });
+
+  describe(`GET ${ENDPOINTS.AVATAR}`, () => {
+    it("serves the exact bytes of the owner's avatar", async () => {
+      const token = await registerAndGetToken(VALID_NAME);
+      await uploadAvatar(token, {
+        ...JPEG_AVATAR,
+        mimeType: UNTYPED_PART_MIME_TYPE,
+      }).expect(HttpStatus.OK);
+
+      const response = await downloadAvatar(token).expect(HttpStatus.OK);
+
+      expect(Buffer.compare(response.body as Buffer, JPEG_AVATAR.content)).toBe(
+        0,
+      );
+      expect(response.headers['content-type']).toBe(JPEG_AVATAR.mimeType);
+      expect(response.headers['content-length']).toBe(
+        String(JPEG_AVATAR.content.length),
+      );
+      expect(response.headers['x-content-type-options']).toBe(NO_SNIFF);
+    });
+
+    it('returns 404 when the user has no avatar', async () => {
+      const token = await registerAndGetToken(VALID_NAME);
+
+      await downloadAvatar(token).expect(HttpStatus.NOT_FOUND);
+    });
+
+    it("another user's token never receives this user's avatar", async () => {
+      const ownerToken = await registerAndGetToken(VALID_NAME);
+      const otherToken = await registerAndGetToken(OTHER_NAME);
+      await uploadAvatar(ownerToken, PNG_AVATAR).expect(HttpStatus.OK);
+      const ownerAvatar = await downloadAvatar(ownerToken).expect(
+        HttpStatus.OK,
+      );
+      expect(
+        Buffer.compare(ownerAvatar.body as Buffer, PNG_AVATAR.content),
+      ).toBe(0);
+
+      await downloadAvatar(otherToken).expect(HttpStatus.NOT_FOUND);
+      await uploadAvatar(otherToken, JPEG_AVATAR).expect(HttpStatus.OK);
+      const otherAvatar = await downloadAvatar(otherToken).expect(
+        HttpStatus.OK,
+      );
+
+      expect(
+        Buffer.compare(otherAvatar.body as Buffer, JPEG_AVATAR.content),
+      ).toBe(0);
+      await removeAvatar(otherToken).expect(HttpStatus.NO_CONTENT);
+      const ownerAvatarAfter = await downloadAvatar(ownerToken).expect(
+        HttpStatus.OK,
+      );
+      expect(
+        Buffer.compare(ownerAvatarAfter.body as Buffer, PNG_AVATAR.content),
+      ).toBe(0);
+    });
+
+    it('rejects a request without a token', async () => {
+      await request(app.getHttpServer())
+        .get(ENDPOINTS.AVATAR)
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+  });
+
+  describe(`DELETE ${ENDPOINTS.AVATAR}`, () => {
+    it('removing the avatar deletes its file and answers 404 afterwards', async () => {
+      const token = await registerAndGetToken(VALID_NAME);
+      await uploadAvatar(token, PNG_AVATAR).expect(HttpStatus.OK);
+      const storageName = await findStoredAvatarName(token);
+      const storedAvatarCount = await countStoredAvatars();
+
+      await removeAvatar(token).expect(HttpStatus.NO_CONTENT);
+
+      expect(storageName).not.toBeNull();
+      expect(await isStoredAvatar(storageName as string)).toBe(false);
+      expect(await countStoredAvatars()).toBe(storedAvatarCount - 1);
+      expect(await getProfileAvatarId(token)).toBeNull();
+      await downloadAvatar(token).expect(HttpStatus.NOT_FOUND);
+    });
+
+    it('rejects a request without a token', async () => {
+      await request(app.getHttpServer())
+        .delete(ENDPOINTS.AVATAR)
         .expect(HttpStatus.UNAUTHORIZED);
     });
   });
