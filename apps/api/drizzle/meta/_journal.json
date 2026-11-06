@@ -36,6 +36,13 @@
       "when": 1793719480179,
       "tag": "0004_add_user_token_version",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793956277787,
+      "tag": "0005_add_user_avatar",
+      "breakpoints": true
     }
   ]
 }

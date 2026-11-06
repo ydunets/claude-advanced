@@ -261,14 +261,44 @@ The first green attempt kept the field errors hidden: React's post-action form r
 
 ## Phase 4: Avatar upload, removal and owner-only serving (API)
 
-**Status:** pending
+**Status:** done
 **Milestone:** [User Profile, Phase 4: Avatar upload, removal and owner-only serving (API)](https://github.com/ydunets/claude-advanced/milestone/9)
 **Goal:** the API stores, replaces, removes and serves a user's avatar under the format and size rules, only to its owner, and leaves no orphaned file on disk.
 **Touches:** database, backend, documentation
 **Depends on:** Phase 1 (`profile/`, `GET /profile`, `ProfileResponse`, `FindUserByIdQuery`, `apps/api/test/profile.e2e-spec.ts`)
 **Read first:** `apps/api/src/meetings/meetings.module.ts` (`MulterModule.registerAsync`, `fileFilter`), `allowed-file-formats.ts`, `file-size-limit.ts`, `file-size-limit.interceptor.ts`, `commands/upload-meeting-file.handler.ts` (stored file cleanup), `queries/get-meeting-file.handler.ts` (streaming), `apps/api/test/meeting-files.e2e-spec.ts` (stored file counts, size limit test)
 **Tests first:** `pnpm --filter api test:e2e profile`. Expected red: `PUT /profile/avatar`, `DELETE /profile/avatar` and `GET /profile/avatar` answer 404 as missing routes, and `GET /profile` has no `avatarId`. "returns 404 when the user has no avatar" is expected green before implementation, because the missing route already answers 404; apply the forced-failure rule.
-**Red run:** not yet run.
+**Red run:** 2026-11-06, against the dev database. The changed tests of task 1 ([#39](https://github.com/ydunets/claude-advanced/issues/39)) failed on an assertion; its upload test needs the route of task 2, so it is recorded there:
+
+- `pnpm --filter api test:e2e profile` (2 failed, 6 passed):
+  - `profile.e2e-spec.ts` "returns the signed-in user's name and email" (now expects `avatarId: null`): the body had no `avatarId`.
+  - `profile.e2e-spec.ts` "updates the name and trims surrounding spaces" (now expects `avatarId: null`): the body had no `avatarId`.
+
+2026-11-06, against the dev database. Every new test of task 2 ([#40](https://github.com/ydunets/claude-advanced/issues/40)), including the upload test of task 1, failed on an assertion:
+
+- `pnpm --filter api test:e2e profile` (6 failed, 8 passed):
+  - `profile.e2e-spec.ts` "an uploaded avatar sets avatarId and a replacement changes it": expected 200, got 404.
+  - `profile.e2e-spec.ts` "a replacement leaves one stored file": the first upload expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects a GIF with the allowed formats": the first upload expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects an image over 5 MB with the limit": expected 413, got 404.
+  - `profile.e2e-spec.ts` "rejects a request without a file": expected 400, got 404.
+  - `profile.e2e-spec.ts` "rejects a request without a token" (`PUT`): expected 401, got 404.
+
+2026-11-06, against the dev database. The new tests of task 3 ([#41](https://github.com/ydunets/claude-advanced/issues/41)) failed on an assertion, except the one the plan expected green:
+
+- `pnpm --filter api test:e2e profile` (5 failed, 15 passed):
+  - `profile.e2e-spec.ts` "serves the exact bytes of the owner's avatar": the upload expected 200, got 404.
+  - `profile.e2e-spec.ts` "another user's token never receives this user's avatar": the owner's upload expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects a request without a token" (`GET /profile/avatar`): expected 401, got 404.
+  - `profile.e2e-spec.ts` "removing the avatar deletes its file and answers 404 afterwards": the upload expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects a request without a token" (`DELETE /profile/avatar`): expected 401, got 404.
+- "returns 404 when the user has no avatar" was green before implementation, because the missing route already answered 404. After implementation, the no-avatar check in `GetAvatarHandler` was removed locally, and `pnpm --filter api test:e2e profile -t "no avatar"` (1 failed, 19 skipped) failed with: expected 404, got 500. The check was then restored.
+
+2026-11-06, after the review of both phase branches. The PRD asks for a refusal "with a message that names JPEG, PNG and WebP and the 5 MB limit", so the 415 message now states the limit too. The strengthened GIF test failed on an assertion against the code before the fix:
+
+- `pnpm --filter api test:e2e profile` (1 failed, 19 passed):
+  - `profile.e2e-spec.ts` "rejects a GIF with the allowed formats": the message did not contain `5 MB`.
+- "rejects an image over 5 MB with the limit" now starts from a stored avatar and asserts that the 413 keeps it and leaves the stored file count unchanged; it passed before any code change, because the behaviour was already right and only its proof was missing.
 
 **Tasks:**
 

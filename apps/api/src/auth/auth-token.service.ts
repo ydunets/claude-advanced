@@ -7,7 +7,12 @@ export type AuthToken = { accessToken: string };
 // Never carries passwordHash: controllers across modules read request.user.
 export type AuthenticatedUser = Pick<
   User,
-  'id' | 'email' | 'name' | 'tokenVersion'
+  | 'id'
+  | 'email'
+  | 'name'
+  | 'tokenVersion'
+  | 'avatarStorageName'
+  | 'avatarMimeType'
 >;
 
 export type AccessTokenClaims = { userId: string; tokenVersion: number };
