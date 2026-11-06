@@ -186,7 +186,8 @@ export function isWorkingTreeClean(): boolean {
   return runGit('status', '--porcelain', '--untracked-files=no') === '';
 }
 
-// Any pull request, merged or closed included, means the milestone shipped.
+// Every state counts: a merged or closed pull request also keeps the hook
+// from opening a second one for the branch.
 export function hasPullRequest(branch: string): boolean {
   return (
     runJsonCommand<unknown[]>(COMMANDS.GH, [
@@ -216,7 +217,8 @@ function acquireLock(lockPath: string): boolean {
   }
 }
 
-// Execute Around: the lock is released however the work ends.
+// Execute Around: the lock is released whether the work returns or throws; a
+// killed process leaves it behind.
 export function withLock(lockPath: string, work: () => void): boolean {
   if (!acquireLock(lockPath)) {
     return false;
