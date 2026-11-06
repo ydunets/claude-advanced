@@ -1,13 +1,21 @@
+import { randomBytes } from 'node:crypto';
+import { access, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpStatus, INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
+import { DATABASE, type Database } from './../src/database/database.module.js';
+import { users } from './../src/database/schema.js';
 import { createUniqueEmail } from './test-users.js';
 
 const ENDPOINTS = {
   REGISTER: '/auth/register',
   PROFILE: '/profile',
+  AVATAR: '/profile/avatar',
 };
 
 const VALID_PASSWORD = 'correct-horse-battery';
@@ -17,6 +25,29 @@ const UPDATED_NAME = 'Anna Maria Lee';
 const MAX_NAME_LENGTH = 100;
 const TOO_LONG_NAME_LENGTH = MAX_NAME_LENGTH + 1;
 const TOO_LONG_NAME = 'a'.repeat(TOO_LONG_NAME_LENGTH);
+
+const AVATAR_FIELD = 'avatar';
+// Avatars live in their own folder inside FILES_STORAGE_DIR, so the meeting
+// files suite, which runs in parallel, never sees them in its counts.
+const AVATAR_DIRECTORY = 'avatars';
+const AVATAR_SIZE_LIMIT_TEXT = '5 MB';
+const ALLOWED_AVATAR_FORMAT_NAMES = ['JPEG', 'PNG', 'WebP'];
+const PNG_AVATAR = {
+  name: 'avatar.png',
+  mimeType: 'image/png',
+  content: randomBytes(16 * 1024),
+};
+const JPEG_AVATAR = {
+  name: 'portrait.JPEG',
+  mimeType: 'image/jpeg',
+  content: randomBytes(16 * 1024),
+};
+const GIF_AVATAR = {
+  name: 'animation.gif',
+  mimeType: 'image/gif',
+  content: randomBytes(1024),
+};
+const OVERSIZED_UPLOAD_TIMEOUT_MS = 30_000;
 
 describe('Profile (e2e)', () => {
   let app: INestApplication<App>;
@@ -55,6 +86,60 @@ describe('Profile (e2e)', () => {
       .auth(token, { type: 'bearer' })
       .expect(HttpStatus.OK);
     return response.body.name as string;
+  }
+
+  async function getProfileAvatarId(token: string): Promise<string | null> {
+    const response = await request(app.getHttpServer())
+      .get(ENDPOINTS.PROFILE)
+      .auth(token, { type: 'bearer' })
+      .expect(HttpStatus.OK);
+    return response.body.avatarId as string | null;
+  }
+
+  function uploadAvatar(
+    token: string,
+    avatar: { name: string; mimeType: string; content: Buffer },
+  ) {
+    return request(app.getHttpServer())
+      .put(ENDPOINTS.AVATAR)
+      .auth(token, { type: 'bearer' })
+      .attach(AVATAR_FIELD, avatar.content, {
+        filename: avatar.name,
+        contentType: avatar.mimeType,
+      });
+  }
+
+  function getAvatarStorageDir(): string {
+    const storageDir = app
+      .get(ConfigService)
+      .getOrThrow<string>('FILES_STORAGE_DIR');
+    return join(storageDir, AVATAR_DIRECTORY);
+  }
+
+  async function countStoredAvatars(): Promise<number> {
+    return (await readdir(getAvatarStorageDir())).length;
+  }
+
+  async function findStoredAvatarName(token: string): Promise<string | null> {
+    const profile = await request(app.getHttpServer())
+      .get(ENDPOINTS.PROFILE)
+      .auth(token, { type: 'bearer' })
+      .expect(HttpStatus.OK);
+    const [user] = await app
+      .get<Database>(DATABASE)
+      .select({ storageName: users.avatarStorageName })
+      .from(users)
+      .where(eq(users.email, profile.body.email as string));
+    return user.storageName;
+  }
+
+  async function isStoredAvatar(storageName: string): Promise<boolean> {
+    try {
+      await access(join(getAvatarStorageDir(), storageName));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   describe(`GET ${ENDPOINTS.PROFILE}`, () => {
@@ -140,6 +225,115 @@ describe('Profile (e2e)', () => {
       await request(app.getHttpServer())
         .patch(ENDPOINTS.PROFILE)
         .send({ name: UPDATED_NAME })
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+  });
+
+  describe(`PUT ${ENDPOINTS.AVATAR}`, () => {
+    it('an uploaded avatar sets avatarId and a replacement changes it', async () => {
+      const token = await registerAndGetToken(VALID_NAME);
+
+      const uploaded = await uploadAvatar(token, PNG_AVATAR).expect(
+        HttpStatus.OK,
+      );
+
+      expect(uploaded.body).toEqual({
+        name: VALID_NAME,
+        email: expect.any(String),
+        avatarId: expect.any(String),
+      });
+      expect(await getProfileAvatarId(token)).toBe(uploaded.body.avatarId);
+
+      const replaced = await uploadAvatar(token, JPEG_AVATAR).expect(
+        HttpStatus.OK,
+      );
+
+      expect(replaced.body.avatarId).toEqual(expect.any(String));
+      expect(replaced.body.avatarId).not.toBe(uploaded.body.avatarId);
+      expect(await getProfileAvatarId(token)).toBe(replaced.body.avatarId);
+    });
+
+    it('a replacement leaves one stored file', async () => {
+      const token = await registerAndGetToken(VALID_NAME);
+      await uploadAvatar(token, PNG_AVATAR).expect(HttpStatus.OK);
+      const previousStorageName = await findStoredAvatarName(token);
+      const storedAvatarCount = await countStoredAvatars();
+
+      await uploadAvatar(token, JPEG_AVATAR).expect(HttpStatus.OK);
+
+      const currentStorageName = await findStoredAvatarName(token);
+      expect(previousStorageName).not.toBeNull();
+      expect(currentStorageName).not.toBeNull();
+      expect(await countStoredAvatars()).toBe(storedAvatarCount);
+      expect(await isStoredAvatar(previousStorageName as string)).toBe(false);
+      expect(await isStoredAvatar(currentStorageName as string)).toBe(true);
+    });
+
+    it('rejects a GIF with the allowed formats', async () => {
+      const token = await registerAndGetToken(VALID_NAME);
+      await uploadAvatar(token, PNG_AVATAR).expect(HttpStatus.OK);
+      const avatarId = await getProfileAvatarId(token);
+      const storedAvatarCount = await countStoredAvatars();
+
+      const response = await uploadAvatar(token, GIF_AVATAR).expect(
+        HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+      );
+
+      expect(response.body).toEqual({
+        statusCode: HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+        message: expect.any(String),
+        error: 'Unsupported Media Type',
+      });
+      for (const formatName of ALLOWED_AVATAR_FORMAT_NAMES) {
+        expect(response.body.message).toContain(formatName);
+      }
+      expect(await getProfileAvatarId(token)).toBe(avatarId);
+      expect(await countStoredAvatars()).toBe(storedAvatarCount);
+    });
+
+    it(
+      'rejects an image over 5 MB with the limit',
+      async () => {
+        const token = await registerAndGetToken(VALID_NAME);
+        const maxAvatarSizeBytes = Number(
+          app.get(ConfigService).getOrThrow<string>('MAX_AVATAR_SIZE_BYTES'),
+        );
+        const oversizedBytes = maxAvatarSizeBytes + 1;
+
+        const response = await uploadAvatar(token, {
+          ...JPEG_AVATAR,
+          content: Buffer.alloc(oversizedBytes),
+        }).expect(HttpStatus.PAYLOAD_TOO_LARGE);
+
+        expect(response.body).toEqual({
+          statusCode: HttpStatus.PAYLOAD_TOO_LARGE,
+          message: expect.stringContaining(AVATAR_SIZE_LIMIT_TEXT),
+          error: 'Payload Too Large',
+        });
+        expect(await getProfileAvatarId(token)).toBeNull();
+      },
+      OVERSIZED_UPLOAD_TIMEOUT_MS,
+    );
+
+    it('rejects a request without a file', async () => {
+      const token = await registerAndGetToken(VALID_NAME);
+
+      await request(app.getHttpServer())
+        .put(ENDPOINTS.AVATAR)
+        .auth(token, { type: 'bearer' })
+        .field('name', VALID_NAME)
+        .expect(HttpStatus.BAD_REQUEST);
+
+      expect(await getProfileAvatarId(token)).toBeNull();
+    });
+
+    it('rejects a request without a token', async () => {
+      await request(app.getHttpServer())
+        .put(ENDPOINTS.AVATAR)
+        .attach(AVATAR_FIELD, PNG_AVATAR.content, {
+          filename: PNG_AVATAR.name,
+          contentType: PNG_AVATAR.mimeType,
+        })
         .expect(HttpStatus.UNAUTHORIZED);
     });
   });

@@ -1,7 +1,5 @@
-import {
-  ALLOWED_FILE_FORMATS,
-  isAllowedFileFormat,
-} from './allowed-file-formats.js';
+import { isAllowedFileFormat } from '../uploads/file-format.js';
+import { ALLOWED_FILE_FORMATS } from './allowed-file-formats.js';
 
 // The list from the PRD, kept here so the test checks it independently.
 const EXPECTED_FORMATS = [
@@ -24,17 +22,28 @@ describe('allowed file formats', () => {
   it('accepts every allowed extension in any case and rejects others', () => {
     expect([...ALLOWED_FILE_FORMATS]).toEqual(EXPECTED_FORMATS);
     for (const format of EXPECTED_FORMATS) {
-      expect(isAllowedFileFormat(`recording.${format}`)).toBe(true);
-      expect(isAllowedFileFormat(`RECORDING.${format.toUpperCase()}`)).toBe(
-        true,
-      );
+      expect(
+        isAllowedFileFormat(`recording.${format}`, ALLOWED_FILE_FORMATS),
+      ).toBe(true);
+      expect(
+        isAllowedFileFormat(
+          `RECORDING.${format.toUpperCase()}`,
+          ALLOWED_FILE_FORMATS,
+        ),
+      ).toBe(true);
     }
-    expect(isAllowedFileFormat('Recording.Mp4')).toBe(true);
+    expect(isAllowedFileFormat('Recording.Mp4', ALLOWED_FILE_FORMATS)).toBe(
+      true,
+    );
 
-    expect(isAllowedFileFormat('setup.exe')).toBe(false);
-    expect(isAllowedFileFormat('report.pdf.exe')).toBe(false);
-    expect(isAllowedFileFormat('README')).toBe(false);
-    expect(isAllowedFileFormat('.pdf')).toBe(false);
-    expect(isAllowedFileFormat('transcript.vtt-draft')).toBe(false);
+    expect(isAllowedFileFormat('setup.exe', ALLOWED_FILE_FORMATS)).toBe(false);
+    expect(isAllowedFileFormat('report.pdf.exe', ALLOWED_FILE_FORMATS)).toBe(
+      false,
+    );
+    expect(isAllowedFileFormat('README', ALLOWED_FILE_FORMATS)).toBe(false);
+    expect(isAllowedFileFormat('.pdf', ALLOWED_FILE_FORMATS)).toBe(false);
+    expect(
+      isAllowedFileFormat('transcript.vtt-draft', ALLOWED_FILE_FORMATS),
+    ).toBe(false);
   });
 });

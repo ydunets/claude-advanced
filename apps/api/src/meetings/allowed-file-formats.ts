@@ -1,5 +1,3 @@
-import { extname } from 'node:path';
-
 export const ALLOWED_FILE_FORMATS: readonly string[] = [
   'mp4',
   'webm',
@@ -17,8 +15,3 @@ export const ALLOWED_FILE_FORMATS: readonly string[] = [
 ];
 
 export const DISALLOWED_FILE_FORMAT_MESSAGE = `This file format is not allowed. Allowed formats: ${ALLOWED_FILE_FORMATS.join(', ')}.`;
-
-export function isAllowedFileFormat(fileName: string): boolean {
-  const format = extname(fileName).slice(1).toLowerCase();
-  return ALLOWED_FILE_FORMATS.includes(format);
-}

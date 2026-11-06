@@ -21,7 +21,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CreateMeetingCommand } from './commands/create-meeting.command.js';
 import { UploadMeetingFileCommand } from './commands/upload-meeting-file.command.js';
 import { CreateMeetingDto } from './dto/create-meeting.dto.js';
-import { FileSizeLimitInterceptor } from './file-size-limit.interceptor.js';
+import { createFileSizeLimitInterceptor } from '../uploads/file-size-limit.interceptor.js';
+import { getMaxFileSizeBytes } from './file-size-limit.js';
 import type { MeetingFileResponse } from './meeting-file-response.js';
 import type { MeetingResponse } from './meeting-response.js';
 import { GetMeetingFileQuery } from './queries/get-meeting-file.query.js';
@@ -33,6 +34,8 @@ const FILE_FIELD = 'file';
 const CONTENT_TYPE_HEADER = 'Content-Type';
 const CONTENT_TYPE_OPTIONS_HEADER = 'X-Content-Type-Options';
 const NO_SNIFF = 'nosniff';
+const FileSizeLimitInterceptor =
+  createFileSizeLimitInterceptor(getMaxFileSizeBytes);
 
 @Controller('meetings')
 @UseGuards(JwtAuthGuard)

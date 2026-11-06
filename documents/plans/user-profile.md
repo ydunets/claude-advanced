@@ -274,6 +274,16 @@ The first green attempt kept the field errors hidden: React's post-action form r
   - `profile.e2e-spec.ts` "returns the signed-in user's name and email" (now expects `avatarId: null`): the body had no `avatarId`.
   - `profile.e2e-spec.ts` "updates the name and trims surrounding spaces" (now expects `avatarId: null`): the body had no `avatarId`.
 
+2026-11-06, against the dev database. Every new test of task 2 ([#40](https://github.com/ydunets/claude-advanced/issues/40)), including the upload test of task 1, failed on an assertion:
+
+- `pnpm --filter api test:e2e profile` (6 failed, 8 passed):
+  - `profile.e2e-spec.ts` "an uploaded avatar sets avatarId and a replacement changes it": expected 200, got 404.
+  - `profile.e2e-spec.ts` "a replacement leaves one stored file": the first upload expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects a GIF with the allowed formats": the first upload expected 200, got 404.
+  - `profile.e2e-spec.ts` "rejects an image over 5 MB with the limit": expected 413, got 404.
+  - `profile.e2e-spec.ts` "rejects a request without a file": expected 400, got 404.
+  - `profile.e2e-spec.ts` "rejects a request without a token" (`PUT`): expected 401, got 404.
+
 **Tasks:**
 
 1. The nullable avatar columns on `users` with their migration, and `SetUserAvatarCommand` and `RemoveUserAvatarCommand` in `users/`, each returning the previous storage name so the caller deletes that file; `GET /profile` adds `avatarId`.

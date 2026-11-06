@@ -1,11 +1,12 @@
-import { Module, UnsupportedMediaTypeException } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
 import { AuthModule } from '../auth/auth.module.js';
 import { DatabaseModule } from '../database/database.module.js';
+import { createFileFormatFilter } from '../uploads/file-format.js';
 import {
+  ALLOWED_FILE_FORMATS,
   DISALLOWED_FILE_FORMAT_MESSAGE,
-  isAllowedFileFormat,
 } from './allowed-file-formats.js';
 import { CreateMeetingHandler } from './commands/create-meeting.handler.js';
 import { UploadMeetingFileHandler } from './commands/upload-meeting-file.handler.js';
@@ -30,18 +31,10 @@ const FILE_NAME_CHARSET = 'utf8';
         dest: config.getOrThrow<string>('FILES_STORAGE_DIR'),
         defParamCharset: FILE_NAME_CHARSET,
         limits: { fileSize: getMaxFileSizeBytes(config) },
-        // Runs before multer opens the file, so a rejected format never
-        // reaches the disk.
-        fileFilter: (_request, file, accept) => {
-          if (isAllowedFileFormat(file.originalname)) {
-            accept(null, true);
-            return;
-          }
-          accept(
-            new UnsupportedMediaTypeException(DISALLOWED_FILE_FORMAT_MESSAGE),
-            false,
-          );
-        },
+        fileFilter: createFileFormatFilter(
+          ALLOWED_FILE_FORMATS,
+          DISALLOWED_FILE_FORMAT_MESSAGE,
+        ),
       }),
     }),
   ],
