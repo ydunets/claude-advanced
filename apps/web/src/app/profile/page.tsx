@@ -7,6 +7,7 @@ import { ROUTES } from '@/lib/routes';
 import { findAccessToken } from '@/lib/session';
 import { MeetingPageShell } from '../meetings/[id]/meeting-page-shell';
 import { UserAvatar } from '../user-avatar';
+import { AvatarForm } from './avatar-form';
 import { NameForm } from './name-form';
 import { PasswordForm } from './password-form';
 
@@ -45,6 +46,15 @@ async function ProfileContent(): Promise<React.JSX.Element> {
           <p className="break-all text-muted">{profile.email}</p>
         </div>
       </div>
+
+      <section aria-labelledby="edit-avatar" className="flex flex-col gap-4">
+        <h2 id="edit-avatar" className="text-base font-semibold">
+          Your avatar
+        </h2>
+        <Card className="p-5 shadow-none">
+          <AvatarForm avatarId={profile.avatarId} />
+        </Card>
+      </section>
 
       <section aria-labelledby="edit-name" className="flex flex-col gap-4">
         <h2 id="edit-name" className="text-base font-semibold">

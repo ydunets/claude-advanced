@@ -1,3 +1,4 @@
+import { truncate, writeFile } from 'node:fs/promises';
 import {
   expect,
   test,
@@ -365,6 +366,16 @@ const AVATAR_ROUTE = '/profile/avatar';
 const AVATAR_FIELD = 'avatar';
 const PNG_MIME_TYPE = 'image/png';
 const SMALL_IMAGE_SIDE = 64;
+const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
+const AVATAR_LIMIT_TEXT = '5 MB';
+const ALLOWED_AVATAR_FORMAT_NAMES = ['JPEG', 'PNG', 'WebP'];
+const GIF_AVATAR = {
+  name: 'animation.gif',
+  mimeType: 'image/gif',
+  buffer: Buffer.from('GIF89a'),
+};
+const OVERSIZED_AVATAR_NAME = 'oversized.jpg';
+const PREVIEW_NAME = 'Preview of the selected image';
 
 type ImageFile = { name: string; mimeType: string; buffer: Buffer };
 
@@ -409,4 +420,86 @@ test('another user or a signed-out visitor never receives the avatar image', asy
   expect(signedOutImage.status()).toBe(HTTP_STATUS.NOT_FOUND);
   expect((await signedOutImage.body()).equals(avatar.buffer)).toBe(false);
   await signedOutContext.close();
+});
+
+function getAvatarInput(page: Page): Locator {
+  return page.getByRole('main').getByLabel('Avatar', { exact: true });
+}
+
+async function saveAvatar(
+  page: Page,
+  avatar: ImageFile | string,
+): Promise<void> {
+  await getAvatarInput(page).setInputFiles(avatar);
+  await page.getByRole('button', { name: 'Save avatar' }).click();
+}
+
+async function saveAvatarAndWait(page: Page, avatar: ImageFile): Promise<void> {
+  await saveAvatar(page, avatar);
+  await expect(page.getByText('Your avatar was saved.')).toBeVisible();
+}
+
+function getAvatarAlert(page: Page): Locator {
+  return page.getByRole('main').getByRole('alert');
+}
+
+async function findStoredAvatar(page: Page): Promise<Buffer | null> {
+  const response = await page.request.get(AVATAR_ROUTE);
+  return response.ok() ? response.body() : null;
+}
+
+test('the selected image is previewed before it is saved', async ({ page }) => {
+  await openProfileAsNewUser(page);
+
+  await getAvatarInput(page).setInputFiles(createSmallPng());
+
+  await expect(
+    page.getByRole('main').getByRole('img', { name: PREVIEW_NAME }),
+  ).toBeVisible();
+  expect(await findStoredAvatar(page)).toBeNull();
+});
+
+test('a GIF or a JPEG over 5 MB is refused with the formats and the limit and the old avatar stays', async ({
+  page,
+}, testInfo) => {
+  await openProfileAsNewUser(page);
+  const avatar = createSmallPng();
+  await saveAvatarAndWait(page, avatar);
+
+  await saveAvatar(page, GIF_AVATAR);
+
+  for (const formatName of ALLOWED_AVATAR_FORMAT_NAMES) {
+    await expect(getAvatarAlert(page)).toContainText(formatName);
+  }
+
+  // A sparse file: one byte over the limit without writing 5 MB to disk.
+  const oversizedAvatarPath = testInfo.outputPath(OVERSIZED_AVATAR_NAME);
+  await writeFile(oversizedAvatarPath, '');
+  await truncate(oversizedAvatarPath, MAX_AVATAR_SIZE_BYTES + 1);
+  await saveAvatar(page, oversizedAvatarPath);
+
+  await expect(getAvatarAlert(page)).toContainText(AVATAR_LIMIT_TEXT);
+  expect((await findStoredAvatar(page))?.equals(avatar.buffer)).toBe(true);
+});
+
+test('removing the avatar brings back the initials on the profile and home pages', async ({
+  page,
+}) => {
+  await openProfileAsNewUser(page);
+  await saveAvatarAndWait(page, createSmallPng());
+
+  await page.getByRole('button', { name: 'Remove avatar' }).click();
+
+  await expect.poll(() => findStoredAvatar(page)).toBeNull();
+  await expect(
+    page.getByRole('button', { name: 'Remove avatar' }),
+  ).toBeHidden();
+  await page.reload();
+  await expect(
+    page.getByRole('main').getByText(TEST_NAME_INITIALS, { exact: true }),
+  ).toBeVisible();
+  await page.goto(ROUTES.HOME);
+  await expect(
+    page.getByRole('link', { name: TEST_NAME }).getByText(TEST_NAME_INITIALS),
+  ).toBeVisible();
 });

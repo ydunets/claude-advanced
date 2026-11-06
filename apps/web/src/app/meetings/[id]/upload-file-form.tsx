@@ -6,6 +6,7 @@ import { startTransition, useState } from 'react';
 import { HTTP_STATUS, MEETING_FILE_FIELD } from '@/lib/api';
 import { getMeetingFilesRoute } from '@/lib/routes';
 import { buildFileTooLargeMessage } from '@/lib/upload-limits';
+import { FileInput } from '../../file-input';
 
 type UploadFileFormProps = {
   meetingId: string;
@@ -86,10 +87,9 @@ export function UploadFileForm({
           <label htmlFor={FILE_INPUT_ID} className="text-sm font-medium">
             File
           </label>
-          <input
+          <FileInput
             id={FILE_INPUT_ID}
             name={MEETING_FILE_FIELD}
-            type="file"
             required
             disabled={isUploading}
             aria-invalid={errorMessage !== null}
@@ -97,7 +97,6 @@ export function UploadFileForm({
               errorMessage !== null ? UPLOAD_ERROR_ID : undefined
             }
             onChange={() => setErrorMessage(null)}
-            className="h-11 w-full rounded-xl border border-border bg-surface p-1.5 text-sm file:mr-3 file:h-full file:rounded-lg file:border-0 file:bg-default file:px-3 file:text-sm file:font-medium file:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:h-10"
           />
         </div>
         <Button

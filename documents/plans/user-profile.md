@@ -336,6 +336,13 @@ The first green attempt kept the field errors hidden: React's post-action form r
 - `pnpm --filter web test:e2e profile -g "never receives"` (1 failed):
   - `profile.spec.ts` "another user or a signed-out visitor never receives the avatar image": the owner's upload through `PUT /profile/avatar` expected 200, got 404 (the Next.js 404 for the missing Route Handler), so the test failed before its "never receives" assertions.
 
+2026-11-06, same stack. Every new test of task 2 ([#44](https://github.com/ydunets/claude-advanced/issues/44)) failed on a missing element:
+
+- `pnpm --filter web test:e2e profile -g "previewed|GIF or a JPEG|removing the avatar"` (3 failed):
+  - `profile.spec.ts` "the selected image is previewed before it is saved", "a GIF or a JPEG over 5 MB is refused with the formats and the limit and the old avatar stays" and "removing the avatar brings back the initials on the profile and home pages": no `Avatar` input (`locator.setInputFiles` timeout).
+
+The first green runs of the removal test raced: while the action runs, the button's label and spinner change its accessible name, so the button named "Remove avatar" disappeared before the API had deleted the file. The test now polls until the image is gone. An avatar over 5 MB needs no check in the browser: the Route Handler streams it, and the API's 413 with the limit reaches the form even for a 20 MB file.
+
 **Tasks:**
 
 1. Route Handlers `PUT /profile/avatar` (streams the upload to the API and relays its status and body) and `GET /profile/avatar` (streams the token user's image; 404 without a cookie or for an API 401 or 404); a Server Action removes the avatar through `DELETE /profile/avatar`.

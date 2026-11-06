@@ -10,8 +10,9 @@ export const API_ENDPOINTS = {
 // Mirrors MIN_PASSWORD_LENGTH in apps/api/src/auth/dto/credentials.dto.ts.
 export const MIN_PASSWORD_LENGTH = 8;
 
-// The multipart field the API's FileInterceptor reads.
+// The multipart fields the API's FileInterceptors read.
 export const MEETING_FILE_FIELD = 'file';
+export const AVATAR_FILE_FIELD = 'avatar';
 
 export const HTTP_STATUS = {
   OK: 200,

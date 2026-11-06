@@ -4,6 +4,8 @@ import { API_ENDPOINTS, fetchFromApi, findApiJson } from './api';
 export type Profile = {
   name: string;
   email: string;
+  // Changes on every upload; null without an avatar.
+  avatarId: string | null;
 };
 
 export async function findProfile(
