@@ -13,14 +13,20 @@ export const TEST_PASSWORD = 'test-password-123';
 export const TEST_NAME = 'Ada Lovelace';
 export const TEST_NAME_INITIALS = 'AL';
 
-type TestUser = { name: string; email: string; accessToken: string };
+export type TestUser = { name: string; email: string; accessToken: string };
 type TestMeeting = { title: string; date: string };
 type TestFile = { name: string; mimeType: string; buffer: Buffer };
+
+// A fresh email per test keeps the suite free of database cleanup, and keeps
+// it under the API's per-account sign-in limit however often it runs.
+export function createUniqueEmail(): string {
+  return `e2e-${randomUUID()}@example.com`;
+}
 
 // Every test registers its own user, so the suite needs no database cleanup
 // and can run repeatedly against the same Postgres instance.
 export async function createTestUser(): Promise<TestUser> {
-  const email = `e2e-${randomUUID()}@example.com`;
+  const email = createUniqueEmail();
   const response = await fetch(`${getApiUrl()}${API_ENDPOINTS.REGISTER}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

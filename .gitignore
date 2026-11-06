@@ -8,3 +8,6 @@ coverage
 .DS_Store
 
 apps/api/storage
+
+# Snapshots and screenshots from the Playwright MCP visual check.
+.playwright-mcp

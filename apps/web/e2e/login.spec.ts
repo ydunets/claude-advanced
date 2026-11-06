@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { ACCESS_TOKEN_COOKIE } from '../src/lib/session';
-import { createTestUser, logIn, TEST_PASSWORD } from './test-users';
+import {
+  createTestUser,
+  createUniqueEmail,
+  logIn,
+  TEST_PASSWORD,
+} from './test-users';
 
 test('the login page offers a link to registration', async ({ page }) => {
   await page.goto('/login');
@@ -48,7 +53,7 @@ test('a wrong password shows an error and keeps the email', async ({
 test('an unknown email gets the same error as a wrong password', async ({
   page,
 }) => {
-  await logIn(page, 'nobody-here@example.com', TEST_PASSWORD);
+  await logIn(page, createUniqueEmail(), TEST_PASSWORD);
 
   await expect(page.getByRole('main').getByRole('alert')).toContainText(
     'Incorrect email or password.',

@@ -1,7 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { parseArgs } from 'node:util';
 
 import {
+  CLI_OPTIONS,
   COMMANDS,
   COMPLETED_REASON,
   CONFIG_PATH,
@@ -26,6 +28,8 @@ export interface RalphConfig {
 }
 
 export type ReviewConfig = RalphConfig & { reviewPrompt: string };
+
+export type CliOverrides = Partial<Pick<RalphConfig, 'prompt' | 'maxTurns'>>;
 
 export interface StopEvent {
   stop_hook_active?: boolean;
@@ -71,6 +75,11 @@ const CONFIG_SCHEMA = {
   reviewPrompt: OPTIONAL_REVIEW_PROMPT,
 } satisfies Record<keyof RalphConfig, FieldRule>;
 
+const OVERRIDE_FLAGS: Record<keyof CliOverrides, string> = {
+  prompt: `--${CLI_OPTIONS.PROMPT}`,
+  maxTurns: `--${CLI_OPTIONS.MAX_TURNS}`,
+};
+
 // Everything the hook prints goes to stderr; stdout is Claude Code's channel.
 export function logRalph(message: string): void {
   console.error(`${LOG_PREFIX} ${message}`);
@@ -87,30 +96,61 @@ export function readStopEvent(): StopEvent {
   return input ? (JSON.parse(input) as StopEvent) : {};
 }
 
-function assertConfig(raw: unknown): asserts raw is RalphConfig {
+// An overridden field names its flag, so a bad flag value never blames the
+// config file.
+function getFieldSource(field: string, overrides: CliOverrides): string {
+  return Object.hasOwn(overrides, field)
+    ? OVERRIDE_FLAGS[field as keyof CliOverrides]
+    : CONFIG_PATH;
+}
+
+function assertConfig(
+  raw: unknown,
+  overrides: CliOverrides,
+): asserts raw is RalphConfig {
   if (typeof raw !== 'object' || raw === null) {
     throw new Error(`${CONFIG_PATH}: must contain a JSON object`);
   }
   const fields = raw as Record<string, unknown>;
   for (const [field, rule] of Object.entries(CONFIG_SCHEMA)) {
     if (!rule.isValid(fields[field])) {
-      throw new Error(`${CONFIG_PATH}: "${field}" must be ${rule.requirement}`);
+      const source = getFieldSource(field, overrides);
+      throw new Error(`${source}: "${field}" must be ${rule.requirement}`);
     }
   }
   const missingPlaceholder = Object.values(PLACEHOLDERS).find(
     (placeholder) => !(fields.prompt as string).includes(placeholder),
   );
   if (missingPlaceholder) {
-    throw new Error(
-      `${CONFIG_PATH}: "prompt" must contain ${missingPlaceholder}`,
-    );
+    const source = getFieldSource('prompt', overrides);
+    throw new Error(`${source}: "prompt" must contain ${missingPlaceholder}`);
   }
 }
 
+// Unknown flags throw, so a typo never silently falls back to the config.
+export function readCliOverrides(): CliOverrides {
+  const { values } = parseArgs({
+    options: {
+      [CLI_OPTIONS.PROMPT]: { type: 'string' },
+      [CLI_OPTIONS.MAX_TURNS]: { type: 'string' },
+    },
+  });
+  const prompt = values[CLI_OPTIONS.PROMPT];
+  const maxTurns = values[CLI_OPTIONS.MAX_TURNS];
+  return {
+    ...(prompt !== undefined && { prompt }),
+    ...(maxTurns !== undefined && { maxTurns: Number(maxTurns) }),
+  };
+}
+
 // Parse, don't validate: the rest of the hook only ever sees a RalphConfig.
-export function readConfig(): RalphConfig {
-  const raw: unknown = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-  assertConfig(raw);
+// Overrides are merged before validation, so they obey the same schema.
+export function readConfig(overrides: CliOverrides): RalphConfig {
+  const raw: unknown = {
+    ...JSON.parse(readFileSync(CONFIG_PATH, 'utf8')),
+    ...overrides,
+  };
+  assertConfig(raw, overrides);
   return raw;
 }
 
@@ -164,7 +204,8 @@ export function isWorkingTreeClean(): boolean {
   return runGit('status', '--porcelain', '--untracked-files=no') === '';
 }
 
-// Any pull request, merged or closed included, means the milestone shipped.
+// Every state counts: a merged or closed pull request also keeps the hook
+// from opening a second one for the branch.
 export function hasPullRequest(branch: string): boolean {
   return (
     runJsonCommand<unknown[]>(COMMANDS.GH, [
@@ -194,7 +235,8 @@ function acquireLock(lockPath: string): boolean {
   }
 }
 
-// Execute Around: the lock is released however the work ends.
+// Execute Around: the lock is released whether the work returns or throws; a
+// killed process leaves it behind.
 export function withLock(lockPath: string, work: () => void): boolean {
   if (!acquireLock(lockPath)) {
     return false;

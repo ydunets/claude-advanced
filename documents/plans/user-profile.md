@@ -209,7 +209,26 @@ Rules for every phase:
 **Depends on:** Phase 1 (`/profile`, `findProfile`, `UserAvatar`, `apps/web/e2e/profile.spec.ts`), Phase 2 (`PATCH /profile`, `POST /auth/password`)
 **Read first:** `apps/web/src/app/(auth)/credentials-form.tsx`, `credentials.ts`, `actions.ts` (Server Action and field error pattern), `apps/web/src/lib/session.ts` (`setAccessToken`), `apps/web/src/app/profile/page.tsx`, `apps/web/e2e/profile.spec.ts`, `apps/web/e2e/test-users.ts`
 **Tests first:** `pnpm --filter web test:e2e profile`. Expected red: the profile page has no editable "Name" field and no password form, so each test fails on a missing element.
-**Red run:** not yet run.
+**Red run:** 2026-11-03, against the running `pnpm dev` and the dev database. Every new test of task 1 ([#36](https://github.com/ydunets/claude-advanced/issues/36)) failed on an assertion:
+
+- `pnpm --filter web test:e2e profile` (5 failed, 2 passed):
+  - `profile.spec.ts` "a saved name shows on the profile and home pages after a reload": no `Name` field (`locator.fill` timeout).
+  - `profile.spec.ts` "an empty or spaces-only name is refused and the saved name is unchanged" (empty and spaces-only cases): no `Name` field.
+  - `profile.spec.ts` "a name over 100 characters is refused with the limit": no `Name` field.
+  - `profile.spec.ts` "surrounding spaces are trimmed and the initials show AM": no `Name` field.
+
+The visual check then found that the first corrected submit after a refused name was lost: React Aria clears the server error on blur, so the message disappears and the button moves up between mouse down and mouse up. The test added for it failed on an assertion against the form before the fix:
+
+- `pnpm --filter web test:e2e profile -g "corrected submit"` (1 failed):
+  - `profile.spec.ts` "the first corrected submit after a refused name saves it": "Your name was saved." not found.
+
+Task 2 ([#37](https://github.com/ydunets/claude-advanced/issues/37)), 2026-11-03, same stack. Every new test failed on a missing element:
+
+- `pnpm --filter web test:e2e profile` (7 failed, 8 passed):
+  - "a password change keeps this browser signed in and only the new password signs in", "a password change sends another browser to the login page", "a wrong current password shows an error and the old password still works", "a new password under 8 characters is refused", "different new password entries are refused", "a new password equal to the current one is refused": no `Current password` field (`locator.fill` timeout).
+  - "repeated wrong current passwords show the try-later message and keep this browser signed in": no `Current password` field, so the retry loop timed out.
+
+The first green attempt kept the field errors hidden: React's post-action form reset fires React Aria's `onChange`, which marked the form as edited. The password fields therefore mark an edit on the native `input` event, which only typing fires.
 
 **Tasks:**
 
@@ -217,9 +236,9 @@ Rules for every phase:
    Files: create `apps/web/src/app/profile/name-form.tsx`, `apps/web/src/app/profile/actions.ts`; modify `apps/web/src/app/profile/page.tsx`, `apps/web/src/lib/api.ts`.
    Proved by: `apps/web/e2e/profile.spec.ts`, "a saved name shows on the profile and home pages after a reload", "an empty or spaces-only name is refused and the saved name is unchanged", "a name over 100 characters is refused with the limit", "surrounding spaces are trimmed and the initials show AM".
    Issue: [#36](https://github.com/ydunets/claude-advanced/issues/36)
-2. A password form on `/profile` with current password, new password and confirmation: a mismatch is refused in the form; the Server Action calls `POST /auth/password`, shows the 403 and 400 messages, and stores the returned token in the cookie on success.
+2. A password form on `/profile` with current password, new password and confirmation: a mismatch is refused in the form; the Server Action calls `POST /auth/password`, shows the 403 and 400 messages, and stores the returned token in the cookie on success. It also shows its own message for 409 (another request changed the password at the same moment; reload the page before trying again) and for 429 (too many attempts; try again later), and neither status signs this browser out or replaces its cookie.
    Files: create `apps/web/src/app/profile/password-form.tsx`; modify `apps/web/src/app/profile/actions.ts`, `apps/web/src/app/profile/page.tsx`.
-   Proved by: `apps/web/e2e/profile.spec.ts`, "a password change keeps this browser signed in and only the new password signs in", "a password change sends another browser to the login page" (two browser contexts), "a wrong current password shows an error and the old password still works", "a new password under 8 characters is refused", "different new password entries are refused", "a new password equal to the current one is refused".
+   Proved by: `apps/web/e2e/profile.spec.ts`, "a password change keeps this browser signed in and only the new password signs in", "a password change sends another browser to the login page" (two browser contexts), "a wrong current password shows an error and the old password still works", "a new password under 8 characters is refused", "different new password entries are refused", "a new password equal to the current one is refused", "repeated wrong current passwords show the try-later message and keep this browser signed in" (submits until the 429 message appears, so it does not depend on the API's `AUTH_ATTEMPT_LIMIT` value). The 409 message is proved by review, because a browser test cannot time two concurrent submits reliably.
    Issue: [#37](https://github.com/ydunets/claude-advanced/issues/37)
 3. Documentation: the profile forms and the token replacement after a password change in `apps/web/CLAUDE.md`.
    Files: modify `apps/web/CLAUDE.md`.
@@ -235,6 +254,7 @@ Rules for every phase:
 - " Anna Maria Lee " is saved as "Anna Maria Lee" and the placeholder shows "AM".
 - A password change keeps this browser signed in, the old password fails and the new one succeeds; another browser is sent to sign in.
 - A wrong current password, a short new password, different entries and an unchanged password are each refused with their error.
+- A concurrent change (409) and too many attempts (429) each show their own message, and this browser stays signed in.
 - The "Red run" lists every new test as red, or as green before implementation with its recorded forced failure.
 - `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm --filter web test:e2e` pass.
 - The visual check and design review from `apps/web/CLAUDE.md` pass for `/profile`, including each error state.

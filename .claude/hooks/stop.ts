@@ -30,6 +30,7 @@ import {
   isWorkingTreeClean,
   listMilestoneIssues,
   logRalph,
+  readCliOverrides,
   readConfig,
   readIteration,
   readStopEvent,
@@ -193,7 +194,7 @@ function runStopHook(): void {
   ) {
     return;
   }
-  const config = readConfig();
+  const config = readConfig(readCliOverrides());
   const lockPath = getGitStatePath(LOCK_FILE);
   if (!withLock(lockPath, () => runLoop(config))) {
     logRalph(

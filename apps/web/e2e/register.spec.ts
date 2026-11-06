@@ -1,17 +1,13 @@
-import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { ACCESS_TOKEN_COOKIE } from '../src/lib/session';
 import { getApiUrl, API_ENDPOINTS } from '../src/lib/api';
 import {
   createTestUser,
+  createUniqueEmail,
   TEST_NAME,
   TEST_NAME_INITIALS,
   TEST_PASSWORD,
 } from './test-users';
-
-function createUniqueEmail(): string {
-  return `e2e-${randomUUID()}@example.com`;
-}
 
 async function submitRegistration(
   page: Page,

@@ -19,7 +19,7 @@
     "format:check": "oxfmt --check",
     "db:up": "docker compose up -d --wait postgres",
     "db:down": "docker compose down",
-    "ralph": "RALPH_LOOP=1 node .claude/hooks/stop.ts < /dev/null",
+    "ralph": "env -u ANTHROPIC_API_KEY RALPH_LOOP=1 node .claude/hooks/stop.ts < /dev/null",
     "prepare": "husky"
   },
   "devDependencies": {
