@@ -7,7 +7,13 @@ import {
   type Locator,
   type Page,
 } from '@playwright/test';
-import { HTTP_STATUS, MIN_PASSWORD_LENGTH } from '../src/lib/api';
+import {
+  API_ENDPOINTS,
+  buildBearerAuthorization,
+  getApiUrl,
+  HTTP_STATUS,
+  MIN_PASSWORD_LENGTH,
+} from '../src/lib/api';
 import { ROUTES } from '../src/lib/routes';
 import {
   createTestUser,
@@ -366,7 +372,10 @@ const AVATAR_ROUTE = '/profile/avatar';
 const AVATAR_FIELD = 'avatar';
 const PNG_MIME_TYPE = 'image/png';
 const SMALL_IMAGE_SIDE = 64;
-const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
+const BYTES_PER_MEGABYTE = 1024 * 1024;
+const MAX_AVATAR_SIZE_MEGABYTES = 5;
+const MAX_AVATAR_SIZE_BYTES = MAX_AVATAR_SIZE_MEGABYTES * BYTES_PER_MEGABYTE;
+const REMOVE_AVATAR_BUTTON = 'Remove avatar';
 const AVATAR_LIMIT_TEXT = '5 MB';
 const ALLOWED_AVATAR_FORMAT_NAMES = ['JPEG', 'PNG', 'WebP'];
 const GIF_AVATAR = {
@@ -376,7 +385,6 @@ const GIF_AVATAR = {
 };
 const OVERSIZED_AVATAR_NAME = 'oversized.jpg';
 const PREVIEW_NAME = 'Preview of the selected image';
-const BYTES_PER_MEGABYTE = 1024 * 1024;
 const LARGE_AVATAR_MEGABYTES = 4;
 const LARGE_AVATAR_MIN_BYTES = LARGE_AVATAR_MEGABYTES * BYTES_PER_MEGABYTE;
 // About 4.02 MB: 1170 rows of 1200 RGB pixels plus a filter byte each.
@@ -522,12 +530,14 @@ test('a GIF or a JPEG over 5 MB is refused with the formats and the limit and th
   await openProfileAsNewUser(page);
   const avatar = createSmallPng();
   await saveAvatarAndWait(page, avatar);
+  const avatarSource = await getShownAvatarSource(page.getByRole('main'));
 
   await saveAvatar(page, GIF_AVATAR);
 
-  for (const formatName of ALLOWED_AVATAR_FORMAT_NAMES) {
-    await expect(getAvatarAlert(page)).toContainText(formatName);
+  for (const text of [...ALLOWED_AVATAR_FORMAT_NAMES, AVATAR_LIMIT_TEXT]) {
+    await expect(getAvatarAlert(page)).toContainText(text);
   }
+  expect(await getShownAvatarSource(page.getByRole('main'))).toBe(avatarSource);
 
   // A sparse file: one byte over the limit without writing 5 MB to disk.
   const oversizedAvatarPath = testInfo.outputPath(OVERSIZED_AVATAR_NAME);
@@ -537,7 +547,38 @@ test('a GIF or a JPEG over 5 MB is refused with the formats and the limit and th
   await saveAvatar(page, oversizedAvatarPath);
 
   await expect(getAvatarAlert(page)).toContainText(AVATAR_LIMIT_TEXT);
+  expect(await getShownAvatarSource(page.getByRole('main'))).toBe(avatarSource);
   expect((await findStoredAvatar(page))?.equals(avatar.buffer)).toBe(true);
+});
+
+// A password change elsewhere revokes this browser's token.
+async function revokeSessions(user: TestUser): Promise<void> {
+  const response = await fetch(
+    `${getApiUrl()}${API_ENDPOINTS.CHANGE_PASSWORD}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: buildBearerAuthorization(user.accessToken),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        currentPassword: TEST_PASSWORD,
+        newPassword: NEW_PASSWORD,
+      }),
+    },
+  );
+  expect(response.ok).toBe(true);
+}
+
+test('an avatar upload after the session was revoked sends the browser to the login page', async ({
+  page,
+}) => {
+  const user = await openProfileAsNewUser(page);
+  await revokeSessions(user);
+
+  await saveAvatar(page, createSmallPng());
+
+  await expect(page).toHaveURL(ROUTES.LOGIN);
 });
 
 test('removing the avatar brings back the initials on the profile and home pages', async ({
@@ -547,11 +588,11 @@ test('removing the avatar brings back the initials on the profile and home pages
   await saveAvatarAndWait(page, createSmallPng());
   await getShownAvatarSource(page.getByRole('main'));
 
-  await page.getByRole('button', { name: 'Remove avatar' }).click();
+  await page.getByRole('button', { name: REMOVE_AVATAR_BUTTON }).click();
 
   await expect.poll(() => findStoredAvatar(page)).toBeNull();
   await expect(
-    page.getByRole('button', { name: 'Remove avatar' }),
+    page.getByRole('button', { name: REMOVE_AVATAR_BUTTON }),
   ).toBeHidden();
   await page.reload();
   await expect(

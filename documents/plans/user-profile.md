@@ -356,6 +356,12 @@ The first green runs of the removal test raced: while the action runs, the butto
 
 Visual check and design review, 2026-11-06: `/profile` with the placeholder, the preview, a saved avatar and the refused GIF, and `/` with the avatar, at 375 and 1280 pixels wide, with no console error other than the browser's own log of the expected 415. The `ui-ux-pro-max` review found the error below the input and linked through `aria-describedby`, and a confirmed save. Removal has no confirmation dialog, because a removed avatar can be uploaded again.
 
+2026-11-06, after the review of both phase branches. Plan Decisions treat a 401 as signed out, so the avatar form now sends the browser to `/login` when an upload answers 401. The new test failed on an assertion against the form before the fix:
+
+- `pnpm --filter web test:e2e profile -g "session was revoked"` (1 failed):
+  - `profile.spec.ts` "an avatar upload after the session was revoked sends the browser to the login page": the URL stayed `/profile` instead of `/login`.
+- "a GIF or a JPEG over 5 MB is refused with the formats and the limit and the old avatar stays" now also asserts the limit in the GIF message and that the previous image stays shown after each refusal; it passed once the API's 415 message stated the limit, because the image was never replaced.
+
 **Tasks:**
 
 1. Route Handlers `PUT /profile/avatar` (streams the upload to the API and relays its status and body) and `GET /profile/avatar` (streams the token user's image; 404 without a cookie or for an API 401 or 404); a Server Action removes the avatar through `DELETE /profile/avatar`.

@@ -13,9 +13,9 @@ export async function POST(
   }
   const { id } = await context.params;
   return streamUploadToApi(
-    request,
     accessToken,
     getMeetingFilesEndpoint(id),
     'POST',
+    request,
   );
 }

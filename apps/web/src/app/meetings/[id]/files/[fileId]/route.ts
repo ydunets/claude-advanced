@@ -13,8 +13,8 @@ export async function GET(
   }
   const { id, fileId } = await context.params;
   return streamDownloadFromApi(
-    request,
     accessToken,
     getMeetingFileEndpoint(id, fileId),
+    request,
   );
 }

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useState } from 'react';
 import {
   AVATAR_FILE_FIELD,
+  HTTP_STATUS,
   readValidationMessage,
   UNREACHABLE_ERROR,
 } from '@/lib/api';
@@ -16,9 +17,16 @@ type AvatarFormProps = {
   avatarId: string | null;
 };
 
+const UPLOAD_OUTCOME = {
+  SAVED: 'saved',
+  REFUSED: 'refused',
+  SIGNED_OUT: 'signed-out',
+} as const;
+
 type UploadOutcome =
-  | { isSaved: true; avatarId: string }
-  | { isSaved: false; errorMessage: string };
+  | { kind: typeof UPLOAD_OUTCOME.SAVED; avatarId: string }
+  | { kind: typeof UPLOAD_OUTCOME.REFUSED; errorMessage: string }
+  | { kind: typeof UPLOAD_OUTCOME.SIGNED_OUT };
 
 const AVATAR_INPUT_ID = 'avatar-file';
 const AVATAR_HINT_ID = 'avatar-file-hint';
@@ -37,16 +45,19 @@ async function uploadAvatar(formData: FormData): Promise<UploadOutcome> {
       body: formData,
     });
   } catch {
-    return { isSaved: false, errorMessage: UNREACHABLE_ERROR };
+    return { kind: UPLOAD_OUTCOME.REFUSED, errorMessage: UNREACHABLE_ERROR };
+  }
+  if (response.status === HTTP_STATUS.UNAUTHORIZED) {
+    return { kind: UPLOAD_OUTCOME.SIGNED_OUT };
   }
   if (!response.ok) {
     return {
-      isSaved: false,
+      kind: UPLOAD_OUTCOME.REFUSED,
       errorMessage: await readValidationMessage(response),
     };
   }
   const { avatarId } = (await response.json()) as { avatarId: string };
-  return { isSaved: true, avatarId };
+  return { kind: UPLOAD_OUTCOME.SAVED, avatarId };
 }
 
 export function AvatarForm({ avatarId }: AvatarFormProps): React.JSX.Element {
@@ -86,7 +97,11 @@ export function AvatarForm({ avatarId }: AvatarFormProps): React.JSX.Element {
     setIsUploading(true);
     const outcome = await uploadAvatar(new FormData(form));
     setIsUploading(false);
-    if (!outcome.isSaved) {
+    if (outcome.kind === UPLOAD_OUTCOME.SIGNED_OUT) {
+      router.push(ROUTES.LOGIN);
+      return;
+    }
+    if (outcome.kind === UPLOAD_OUTCOME.REFUSED) {
       setErrorMessage(outcome.errorMessage);
       return;
     }

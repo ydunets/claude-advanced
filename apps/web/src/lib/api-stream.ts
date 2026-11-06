@@ -29,10 +29,10 @@ function buildDownloadHeaders(apiHeaders: Headers): Headers {
 // relays the API's status and body, so the client sees its limit and format
 // messages unchanged.
 export async function streamUploadToApi(
-  request: NextRequest,
   accessToken: string,
   endpoint: string,
   method: 'POST' | 'PUT',
+  request: NextRequest,
 ): Promise<Response> {
   // Node's fetch requires `duplex` for a streamed body, but TypeScript's DOM
   // RequestInit does not declare it yet.
@@ -58,9 +58,9 @@ export async function streamUploadToApi(
 // A missing or foreign resource answers 404 and any other error keeps its
 // status, both without a body; a success streams with the file headers.
 export async function streamDownloadFromApi(
-  request: NextRequest,
   accessToken: string,
   endpoint: string,
+  request: NextRequest,
 ): Promise<Response> {
   const apiResponse = await fetch(`${getApiUrl()}${endpoint}`, {
     headers: { Authorization: buildBearerAuthorization(accessToken) },

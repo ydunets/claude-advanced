@@ -9,10 +9,10 @@ export async function PUT(request: NextRequest): Promise<Response> {
     return new Response(null, { status: HTTP_STATUS.UNAUTHORIZED });
   }
   return streamUploadToApi(
-    request,
     accessToken,
     API_ENDPOINTS.PROFILE_AVATAR,
     'PUT',
+    request,
   );
 }
 
@@ -24,9 +24,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     return new Response(null, { status: HTTP_STATUS.NOT_FOUND });
   }
   const response = await streamDownloadFromApi(
-    request,
     accessToken,
     API_ENDPOINTS.PROFILE_AVATAR,
+    request,
   );
   if (response.status === HTTP_STATUS.UNAUTHORIZED) {
     return new Response(null, { status: HTTP_STATUS.NOT_FOUND });
