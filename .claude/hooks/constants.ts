@@ -48,6 +48,8 @@ export const INITIAL_ITERATION = 0;
 export const ITERATION_STEP = 1;
 
 export const GIT_REMOTE = 'origin';
+// A phase without "base" starts from this branch and opens its PR into it.
+export const MAIN_BRANCH = 'main';
 
 export const ISSUE_STATE = { OPEN: 'open', CLOSED: 'closed' } as const;
 export type IssueState = (typeof ISSUE_STATE)[keyof typeof ISSUE_STATE];
