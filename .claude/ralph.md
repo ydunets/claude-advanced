@@ -10,7 +10,7 @@ These rules apply only to a headless session started by the Ralph Loop Stop hook
 
 ## Branch
 
-- Check that the prompt's branch exists (`git branch --list <branch>`). If it does not, create it from `main` and switch to it; otherwise make sure `git branch --show-current` names it.
+- The hook creates and switches to the prompt's branch before the session starts. Check that `git branch --show-current` names it; if it does not, end the session without changes.
 - Work only on that branch: never create another branch, switch away, rebase or push. The hook owns the push.
 - Commit with `<type>(<scope>): <subject>` as described in the `commit-work` skill, with a body line `Refs #<issue>`. Commit only the files this task changed, and leave no tracked file uncommitted.
 

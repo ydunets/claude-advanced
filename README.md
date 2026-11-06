@@ -54,16 +54,21 @@ Run from the repository root after `pnpm install`.
 | `pnpm lint`      | Run Oxlint with type-aware rules                                                    |
 | `pnpm lint:fix`  | Apply Oxlint autofixes                                                              |
 | `pnpm typecheck` | Run the TypeScript compiler without emitting, in each app and over `.claude/hooks/` |
-| `pnpm test`      | Run the unit tests (Vitest)                                                         |
+| `pnpm test`      | Run the unit tests (Vitest, and `node:test` for the Ralph Loop hook)                |
 | `pnpm format`    | Format the repository with Oxfmt                                                    |
 | `pnpm db:up`     | Start Postgres in Docker and wait for health                                        |
 | `pnpm db:down`   | Stop Postgres (data stays in the volume)                                            |
-| `pnpm ralph`     | Run the Ralph Loop for the milestone in `.claude/ralph-config.json`                 |
+| `pnpm ralph`     | Run the Ralph Loop for the phases in `.claude/ralph-config.json`                    |
 
-`pnpm ralph` runs one headless Claude session per open issue of the milestone,
-then pushes the branch, opens the pull request and reviews it. It stops after
-`maxIteration` sessions; delete `$(git rev-parse --git-path ralph-iteration.json)`
-to allow more. `--max-turns <n>` and `--prompt <text>` override the config for
+`pnpm ralph` works through the `phases` of the config in order. Each phase
+names a milestone, a branch and an optional `base`, an earlier phase's branch
+that it builds on; without `base` it starts from `main`. The first phase whose
+branch has no pull request is the current one: the hook switches to its branch
+(creating it from `origin/<base>`), runs one headless Claude session per open
+issue of the milestone, then pushes the branch, opens the pull request into the
+base and reviews it, and moves on to the next phase. An issue left open stops
+the whole run. Each phase stops after `maxIteration` sessions; delete
+`$(git rev-parse --git-path ralph-iteration.json)` to allow more. `--max-turns <n>` and `--prompt <text>` override the config for
 one run (`pnpm ralph --max-turns 30`); without them the config values apply.
 The script drops `ANTHROPIC_API_KEY`, so every session runs on the claude.ai
 subscription instead of being billed to an API key.
@@ -108,14 +113,14 @@ To prepare a fresh database:
 The repository has three suites. Each later one needs more of the stack
 running than the one before it.
 
-| Suite                       | Command                      | Needs                                                                         | Location                    |
-| --------------------------- | ---------------------------- | ----------------------------------------------------------------------------- | --------------------------- |
-| Unit (Vitest)               | `pnpm test`                  | Nothing                                                                       | `apps/api/src/**/*.spec.ts` |
-| API end to end (Vitest)     | `pnpm --filter api test:e2e` | Postgres running and migrated, `apps/api/.env`                                | `apps/api/test/`            |
-| Web end to end (Playwright) | `pnpm --filter web test:e2e` | Postgres, the running web app and API (`pnpm dev`), `apps/web/.env`, Chromium | `apps/web/e2e/`             |
+| Suite                       | Command                      | Needs                                                                         | Location                                               |
+| --------------------------- | ---------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Unit (Vitest, `node:test`)  | `pnpm test`                  | Nothing                                                                       | `apps/api/src/**/*.spec.ts`, `.claude/hooks/*.test.ts` |
+| API end to end (Vitest)     | `pnpm --filter api test:e2e` | Postgres running and migrated, `apps/api/.env`                                | `apps/api/test/`                                       |
+| Web end to end (Playwright) | `pnpm --filter web test:e2e` | Postgres, the running web app and API (`pnpm dev`), `apps/web/.env`, Chromium | `apps/web/e2e/`                                        |
 
-- **Unit tests** cover pure logic such as password hashing and the allowed
-  upload formats. They need no
+- **Unit tests** cover pure logic such as password hashing, the allowed
+  upload formats and the Ralph Loop phase config. They need no
   database or server.
 - **API end-to-end tests** boot `AppModule` inside the test process and send
   HTTP requests with Supertest, so the API server does not need to run. They

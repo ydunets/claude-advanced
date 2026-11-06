@@ -7,19 +7,29 @@ import {
   COMMANDS,
   COMPLETED_REASON,
   CONFIG_PATH,
+  EMPTY_RANGE_COUNT,
   ERROR_CODES,
+  GIT_REMOTE,
   INITIAL_ITERATION,
   ISSUE_LIST_LIMIT,
   ISSUE_OPEN_STATE,
   LOG_PREFIX,
+  MAIN_BRANCH,
   PLACEHOLDERS,
   PULL_REQUEST_PLACEHOLDER,
 } from './constants.ts';
 import type { IssueState, Placeholder } from './constants.ts';
 
-export interface RalphConfig {
+export interface Phase {
   milestone: string;
   branch: string;
+  // Optional: an earlier phase's branch that this phase builds on; without it
+  // the phase starts from main.
+  base?: string;
+}
+
+export interface RalphConfig {
+  phases: Phase[];
   prompt: string;
   maxIteration: number;
   maxTurns: number;
@@ -58,6 +68,10 @@ const POSITIVE_INTEGER: FieldRule = {
   isValid: (value) => Number.isInteger(value) && (value as number) > 0,
   requirement: 'a positive integer',
 };
+const NON_EMPTY_ARRAY: FieldRule = {
+  isValid: (value) => Array.isArray(value) && value.length > 0,
+  requirement: 'a non-empty array',
+};
 const OPTIONAL_REVIEW_PROMPT: FieldRule = {
   isValid: (value) =>
     value === undefined ||
@@ -67,13 +81,18 @@ const OPTIONAL_REVIEW_PROMPT: FieldRule = {
 
 // A declarative schema: each config field names the rule it must satisfy.
 const CONFIG_SCHEMA = {
-  milestone: NON_EMPTY_STRING,
-  branch: NON_EMPTY_STRING,
+  phases: NON_EMPTY_ARRAY,
   prompt: NON_EMPTY_STRING,
   maxIteration: POSITIVE_INTEGER,
   maxTurns: POSITIVE_INTEGER,
   reviewPrompt: OPTIONAL_REVIEW_PROMPT,
 } satisfies Record<keyof RalphConfig, FieldRule>;
+
+// "base" is checked against the earlier phases, so it has no rule here.
+const PHASE_SCHEMA = {
+  milestone: NON_EMPTY_STRING,
+  branch: NON_EMPTY_STRING,
+} satisfies Record<Exclude<keyof Phase, 'base'>, FieldRule>;
 
 const OVERRIDE_FLAGS: Record<keyof CliOverrides, string> = {
   prompt: `--${CLI_OPTIONS.PROMPT}`,
@@ -104,26 +123,90 @@ function getFieldSource(field: string, overrides: CliOverrides): string {
     : CONFIG_PATH;
 }
 
-function assertConfig(
+// The source is the config file or, for an overridden field, its flag. The
+// expectation completes "must", as in "be a positive integer".
+function createFieldError(
+  source: string,
+  field: string,
+  expectation: string,
+): Error {
+  return new Error(`${source}: "${field}" must ${expectation}`);
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function findInvalidField(
+  fields: Record<string, unknown>,
+  schema: Record<string, FieldRule>,
+): [string, FieldRule] | undefined {
+  return Object.entries(schema).find(
+    ([field, rule]) => !rule.isValid(fields[field]),
+  );
+}
+
+// A base must name an earlier phase's branch: that phase has its pull request,
+// and so its pushed branch, before this phase starts.
+function assertPhases(phases: unknown[]): asserts phases is Phase[] {
+  const branches = new Set<string>();
+  for (const [index, phase] of phases.entries()) {
+    const label = `phases[${index}]`;
+    if (!isObject(phase)) {
+      throw createFieldError(CONFIG_PATH, label, 'be an object');
+    }
+    const invalidField = findInvalidField(phase, PHASE_SCHEMA);
+    if (invalidField) {
+      const [field, rule] = invalidField;
+      throw createFieldError(
+        CONFIG_PATH,
+        `${label}.${field}`,
+        `be ${rule.requirement}`,
+      );
+    }
+    // PHASE_SCHEMA has just confirmed that branch is a non-empty string.
+    const branch = phase.branch as string;
+    const { base } = phase;
+    if (branches.has(branch)) {
+      throw createFieldError(
+        CONFIG_PATH,
+        `${label}.branch`,
+        "differ from every earlier phase's branch",
+      );
+    }
+    const isBaseValid =
+      base === undefined || (typeof base === 'string' && branches.has(base));
+    if (!isBaseValid) {
+      throw createFieldError(
+        CONFIG_PATH,
+        `${label}.base`,
+        "be absent or an earlier phase's branch",
+      );
+    }
+    branches.add(branch);
+  }
+}
+
+export function assertConfig(
   raw: unknown,
   overrides: CliOverrides,
 ): asserts raw is RalphConfig {
-  if (typeof raw !== 'object' || raw === null) {
+  if (!isObject(raw)) {
     throw new Error(`${CONFIG_PATH}: must contain a JSON object`);
   }
-  const fields = raw as Record<string, unknown>;
-  for (const [field, rule] of Object.entries(CONFIG_SCHEMA)) {
-    if (!rule.isValid(fields[field])) {
-      const source = getFieldSource(field, overrides);
-      throw new Error(`${source}: "${field}" must be ${rule.requirement}`);
-    }
+  const invalidField = findInvalidField(raw, CONFIG_SCHEMA);
+  if (invalidField) {
+    const [field, rule] = invalidField;
+    const source = getFieldSource(field, overrides);
+    throw createFieldError(source, field, `be ${rule.requirement}`);
   }
+  assertPhases(raw.phases as unknown[]);
   const missingPlaceholder = Object.values(PLACEHOLDERS).find(
-    (placeholder) => !(fields.prompt as string).includes(placeholder),
+    (placeholder) => !(raw.prompt as string).includes(placeholder),
   );
   if (missingPlaceholder) {
     const source = getFieldSource('prompt', overrides);
-    throw new Error(`${source}: "prompt" must contain ${missingPlaceholder}`);
+    throw createFieldError(source, 'prompt', `contain ${missingPlaceholder}`);
   }
 }
 
@@ -195,6 +278,29 @@ export function isIssueOpen(issueNumber: number): boolean {
   return issue.state === ISSUE_OPEN_STATE;
 }
 
+export function getBaseBranch(phase: Phase): string {
+  return phase.base ?? MAIN_BRANCH;
+}
+
+// The first phase without a pull request is the current one, so a rerun
+// resumes where the last run stopped without stored state.
+export function findCurrentPhase(
+  phases: Phase[],
+  hasBranchPullRequest: (branch: string) => boolean,
+): Phase | undefined {
+  return phases.find((phase) => !hasBranchPullRequest(phase.branch));
+}
+
+export function hasLocalBranch(branch: string): boolean {
+  return runGit('branch', '--list', branch) !== '';
+}
+
+// Compares HEAD with the remote copy of the base branch.
+export function isHeadAheadOf(base: string): boolean {
+  const range = `${GIT_REMOTE}/${base}..HEAD`;
+  return runGit('rev-list', '--count', range) !== EMPTY_RANGE_COUNT;
+}
+
 export function isOnBranch(branch: string): boolean {
   return runGit('branch', '--show-current') === branch;
 }
@@ -207,15 +313,14 @@ export function isWorkingTreeClean(): boolean {
 // Every state counts: a merged or closed pull request also keeps the hook
 // from opening a second one for the branch.
 export function hasPullRequest(branch: string): boolean {
-  return (
-    runJsonCommand<unknown[]>(COMMANDS.GH, [
-      'pr',
-      'list',
-      `--head=${branch}`,
-      '--state=all',
-      '--json=number',
-    ]).length > 0
-  );
+  const pullRequests = runJsonCommand<unknown[]>(COMMANDS.GH, [
+    'pr',
+    'list',
+    `--head=${branch}`,
+    '--state=all',
+    '--json=number',
+  ]);
+  return pullRequests.length > 0;
 }
 
 export function getGitStatePath(fileName: string): string {
@@ -283,7 +388,8 @@ function fillPlaceholders(
 }
 
 export function buildSessionPrompt(
-  { prompt, milestone, branch }: RalphConfig,
+  { prompt }: RalphConfig,
+  { milestone, branch }: Phase,
   issueNumber: number,
 ): string {
   const values: Record<Placeholder, string> = {
@@ -295,14 +401,16 @@ export function buildSessionPrompt(
 }
 
 export function buildReviewPrompt(
-  { reviewPrompt, milestone, branch }: ReviewConfig,
+  { reviewPrompt }: ReviewConfig,
+  { milestone, branch }: Phase,
   pullRequestUrl: string,
 ): string {
-  return fillPlaceholders(reviewPrompt, {
+  const values = {
     [PLACEHOLDERS.MILESTONE]: milestone,
     [PLACEHOLDERS.BRANCH]: branch,
     [PULL_REQUEST_PLACEHOLDER]: pullRequestUrl,
-  });
+  };
+  return fillPlaceholders(reviewPrompt, values);
 }
 
 // Issue titles stay out of the body: a title such as "closes #12" would close
