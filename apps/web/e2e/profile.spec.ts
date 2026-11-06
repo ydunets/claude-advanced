@@ -1,3 +1,4 @@
+import { truncate, writeFile } from 'node:fs/promises';
 import {
   expect,
   test,
@@ -6,7 +7,13 @@ import {
   type Locator,
   type Page,
 } from '@playwright/test';
-import { MIN_PASSWORD_LENGTH } from '../src/lib/api';
+import {
+  API_ENDPOINTS,
+  buildBearerAuthorization,
+  getApiUrl,
+  HTTP_STATUS,
+  MIN_PASSWORD_LENGTH,
+} from '../src/lib/api';
 import { ROUTES } from '../src/lib/routes';
 import {
   createTestUser,
@@ -16,6 +23,7 @@ import {
   TEST_PASSWORD,
   type TestUser,
 } from './test-users';
+import { createNoisePng } from './test-images';
 
 const MAX_NAME_LENGTH = 100;
 const NEW_NAME = 'Grace Hopper';
@@ -356,4 +364,301 @@ test('the home page links to a profile with the name, the email and the initials
   await expect(
     profile.getByText(TEST_NAME_INITIALS, { exact: true }),
   ).toBeVisible();
+});
+
+// Kept here, not imported from src/lib, so the tests check the public
+// addresses and the API's field name independently.
+const AVATAR_ROUTE = '/profile/avatar';
+const AVATAR_FIELD = 'avatar';
+const PNG_MIME_TYPE = 'image/png';
+const SMALL_IMAGE_SIDE = 64;
+const BYTES_PER_MEGABYTE = 1024 * 1024;
+const MAX_AVATAR_SIZE_MEGABYTES = 5;
+const MAX_AVATAR_SIZE_BYTES = MAX_AVATAR_SIZE_MEGABYTES * BYTES_PER_MEGABYTE;
+const REMOVE_AVATAR_BUTTON = 'Remove avatar';
+const AVATAR_LIMIT_TEXT = '5 MB';
+const ALLOWED_AVATAR_FORMAT_NAMES = ['JPEG', 'PNG', 'WebP'];
+const GIF_AVATAR = {
+  name: 'animation.gif',
+  mimeType: 'image/gif',
+  buffer: Buffer.from('GIF89a'),
+};
+const OVERSIZED_AVATAR_NAME = 'oversized.jpg';
+const PREVIEW_NAME = 'Preview of the selected image';
+const LARGE_AVATAR_MEGABYTES = 4;
+const LARGE_AVATAR_MIN_BYTES = LARGE_AVATAR_MEGABYTES * BYTES_PER_MEGABYTE;
+// About 4.02 MB: 1170 rows of 1200 RGB pixels plus a filter byte each.
+const LARGE_PNG_WIDTH = 1200;
+const LARGE_PNG_HEIGHT = 1170;
+const JPEG_MIME_TYPE = 'image/jpeg';
+const WEBP_MIME_TYPE = 'image/webp';
+const CANVAS_FILL = '#2f6fdf';
+
+type ImageFile = { name: string; mimeType: string; buffer: Buffer };
+
+function createSmallPng(): ImageFile {
+  return {
+    name: 'avatar.png',
+    mimeType: PNG_MIME_TYPE,
+    buffer: createNoisePng(SMALL_IMAGE_SIDE, SMALL_IMAGE_SIDE),
+  };
+}
+
+test('another user or a signed-out visitor never receives the avatar image', async ({
+  page,
+  browser,
+}) => {
+  await openProfileAsNewUser(page);
+  const avatar = createSmallPng();
+  const upload = await page.request.put(AVATAR_ROUTE, {
+    multipart: { [AVATAR_FIELD]: avatar },
+  });
+  expect(upload.status()).toBe(HTTP_STATUS.OK);
+  const { avatarId } = (await upload.json()) as { avatarId: string };
+  const ownerImage = await page.request.get(AVATAR_ROUTE);
+  expect(ownerImage.status()).toBe(HTTP_STATUS.OK);
+  expect(ownerImage.headers()['content-type']).toBe(PNG_MIME_TYPE);
+  expect((await ownerImage.body()).equals(avatar.buffer)).toBe(true);
+
+  const otherContext = await browser.newContext();
+  const otherPage = await otherContext.newPage();
+  await openProfileAsNewUser(otherPage);
+  const otherImage = await otherPage.request.get(
+    `${AVATAR_ROUTE}?v=${avatarId}`,
+  );
+  expect(otherImage.status()).toBe(HTTP_STATUS.NOT_FOUND);
+  expect((await otherImage.body()).equals(avatar.buffer)).toBe(false);
+  await otherContext.close();
+
+  const signedOutContext = await browser.newContext();
+  const signedOutImage = await signedOutContext.request.get(
+    `${AVATAR_ROUTE}?v=${avatarId}`,
+  );
+  expect(signedOutImage.status()).toBe(HTTP_STATUS.NOT_FOUND);
+  expect((await signedOutImage.body()).equals(avatar.buffer)).toBe(false);
+  await signedOutContext.close();
+});
+
+// Drawn by the browser, so the replacement is an image Chromium can decode.
+async function createCanvasImage(
+  page: Page,
+  name: string,
+  mimeType: string,
+): Promise<ImageFile> {
+  const { type, bytes } = await page.evaluate(
+    async ({ imageType, side, fill }) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = side;
+      canvas.height = side;
+      const context = canvas.getContext('2d') as CanvasRenderingContext2D;
+      context.fillStyle = fill;
+      context.fillRect(0, 0, side, side);
+      const blob = (await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, imageType),
+      )) as Blob;
+      return {
+        type: blob.type,
+        bytes: Array.from(new Uint8Array(await blob.arrayBuffer())),
+      };
+    },
+    { imageType: mimeType, side: SMALL_IMAGE_SIDE, fill: CANVAS_FILL },
+  );
+  expect(type).toBe(mimeType);
+  return { name, mimeType, buffer: Buffer.from(bytes) };
+}
+
+function getAvatarImage(scope: Locator): Locator {
+  return scope.locator(`img[src^="${AVATAR_ROUTE}?v="]`);
+}
+
+function getHomeProfileLink(page: Page): Locator {
+  return page.getByRole('link', { name: TEST_NAME });
+}
+
+// Resolves the image address once the browser has decoded the image.
+async function getShownAvatarSource(scope: Locator): Promise<string> {
+  const image = getAvatarImage(scope);
+  await expect(image).toBeVisible();
+  await expect
+    .poll(() =>
+      image.evaluate((element: HTMLImageElement) => element.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  return (await image.getAttribute('src')) as string;
+}
+
+function getAvatarInput(page: Page): Locator {
+  return page.getByRole('main').getByLabel('Avatar', { exact: true });
+}
+
+async function saveAvatar(
+  page: Page,
+  avatar: ImageFile | string,
+): Promise<void> {
+  await getAvatarInput(page).setInputFiles(avatar);
+  await page.getByRole('button', { name: 'Save avatar' }).click();
+}
+
+async function saveAvatarAndWait(page: Page, avatar: ImageFile): Promise<void> {
+  await saveAvatar(page, avatar);
+  await expect(page.getByText('Your avatar was saved.')).toBeVisible();
+}
+
+function getAvatarAlert(page: Page): Locator {
+  return page.getByRole('main').getByRole('alert');
+}
+
+async function findStoredAvatar(page: Page): Promise<Buffer | null> {
+  const response = await page.request.get(AVATAR_ROUTE);
+  return response.ok() ? response.body() : null;
+}
+
+test('the selected image is previewed before it is saved', async ({ page }) => {
+  await openProfileAsNewUser(page);
+
+  await getAvatarInput(page).setInputFiles(createSmallPng());
+
+  await expect(
+    page.getByRole('main').getByRole('img', { name: PREVIEW_NAME }),
+  ).toBeVisible();
+  expect(await findStoredAvatar(page)).toBeNull();
+});
+
+test('a GIF or a JPEG over 5 MB is refused with the formats and the limit and the old avatar stays', async ({
+  page,
+}, testInfo) => {
+  await openProfileAsNewUser(page);
+  const avatar = createSmallPng();
+  await saveAvatarAndWait(page, avatar);
+  const avatarSource = await getShownAvatarSource(page.getByRole('main'));
+
+  await saveAvatar(page, GIF_AVATAR);
+
+  for (const text of [...ALLOWED_AVATAR_FORMAT_NAMES, AVATAR_LIMIT_TEXT]) {
+    await expect(getAvatarAlert(page)).toContainText(text);
+  }
+  expect(await getShownAvatarSource(page.getByRole('main'))).toBe(avatarSource);
+
+  // A sparse file: one byte over the limit without writing 5 MB to disk.
+  const oversizedAvatarPath = testInfo.outputPath(OVERSIZED_AVATAR_NAME);
+  await writeFile(oversizedAvatarPath, '');
+  const oversizedAvatarBytes = MAX_AVATAR_SIZE_BYTES + 1;
+  await truncate(oversizedAvatarPath, oversizedAvatarBytes);
+  await saveAvatar(page, oversizedAvatarPath);
+
+  await expect(getAvatarAlert(page)).toContainText(AVATAR_LIMIT_TEXT);
+  expect(await getShownAvatarSource(page.getByRole('main'))).toBe(avatarSource);
+  expect((await findStoredAvatar(page))?.equals(avatar.buffer)).toBe(true);
+});
+
+// A password change elsewhere revokes this browser's token.
+async function revokeSessions(user: TestUser): Promise<void> {
+  const response = await fetch(
+    `${getApiUrl()}${API_ENDPOINTS.CHANGE_PASSWORD}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: buildBearerAuthorization(user.accessToken),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        currentPassword: TEST_PASSWORD,
+        newPassword: NEW_PASSWORD,
+      }),
+    },
+  );
+  expect(response.ok).toBe(true);
+}
+
+test('an avatar upload after the session was revoked sends the browser to the login page', async ({
+  page,
+}) => {
+  const user = await openProfileAsNewUser(page);
+  await revokeSessions(user);
+
+  await saveAvatar(page, createSmallPng());
+
+  await expect(page).toHaveURL(ROUTES.LOGIN);
+});
+
+test('removing the avatar brings back the initials on the profile and home pages', async ({
+  page,
+}) => {
+  await openProfileAsNewUser(page);
+  await saveAvatarAndWait(page, createSmallPng());
+  await getShownAvatarSource(page.getByRole('main'));
+
+  await page.getByRole('button', { name: REMOVE_AVATAR_BUTTON }).click();
+
+  await expect.poll(() => findStoredAvatar(page)).toBeNull();
+  await expect(
+    page.getByRole('button', { name: REMOVE_AVATAR_BUTTON }),
+  ).toBeHidden();
+  await page.reload();
+  await expect(
+    page.getByRole('main').getByText(TEST_NAME_INITIALS, { exact: true }),
+  ).toBeVisible();
+  await expect(getAvatarImage(page.getByRole('main'))).toHaveCount(0);
+  await page.goto(ROUTES.HOME);
+  await expect(
+    getHomeProfileLink(page).getByText(TEST_NAME_INITIALS),
+  ).toBeVisible();
+  await expect(getAvatarImage(getHomeProfileLink(page))).toHaveCount(0);
+});
+
+test('a 4 MB PNG avatar shows on the profile and home pages, also after a new sign-in', async ({
+  page,
+}) => {
+  const user = await openProfileAsNewUser(page);
+  const avatar = {
+    name: 'large-avatar.png',
+    mimeType: PNG_MIME_TYPE,
+    buffer: createNoisePng(LARGE_PNG_WIDTH, LARGE_PNG_HEIGHT),
+  };
+  expect(avatar.buffer.length).toBeGreaterThan(LARGE_AVATAR_MIN_BYTES);
+  expect(avatar.buffer.length).toBeLessThan(MAX_AVATAR_SIZE_BYTES);
+
+  await saveAvatarAndWait(page, avatar);
+
+  await getShownAvatarSource(page.getByRole('main'));
+  await page.goto(ROUTES.HOME);
+  await getShownAvatarSource(getHomeProfileLink(page));
+
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(ROUTES.LOGIN);
+  await logIn(page, user.email, TEST_PASSWORD);
+  await expect(page).toHaveURL(ROUTES.HOME);
+
+  await getShownAvatarSource(getHomeProfileLink(page));
+  await page.goto(ROUTES.PROFILE);
+  await getShownAvatarSource(page.getByRole('main'));
+  expect((await findStoredAvatar(page))?.equals(avatar.buffer)).toBe(true);
+});
+
+test('a replacement image shows in both places and the previous one does not', async ({
+  page,
+}) => {
+  await openProfileAsNewUser(page);
+  await saveAvatarAndWait(page, createSmallPng());
+  let previousSource = await getShownAvatarSource(page.getByRole('main'));
+  const replacements = [
+    await createCanvasImage(page, 'replacement.jpg', JPEG_MIME_TYPE),
+    await createCanvasImage(page, 'replacement.webp', WEBP_MIME_TYPE),
+  ];
+
+  for (const replacement of replacements) {
+    await saveAvatarAndWait(page, replacement);
+
+    const source = await getShownAvatarSource(page.getByRole('main'));
+    expect(source).not.toBe(previousSource);
+    await expect(page.locator(`img[src="${previousSource}"]`)).toHaveCount(0);
+    expect((await findStoredAvatar(page))?.equals(replacement.buffer)).toBe(
+      true,
+    );
+    await page.goto(ROUTES.HOME);
+    expect(await getShownAvatarSource(getHomeProfileLink(page))).toBe(source);
+    await expect(page.locator(`img[src="${previousSource}"]`)).toHaveCount(0);
+    await page.goto(ROUTES.PROFILE);
+    previousSource = source;
+  }
 });

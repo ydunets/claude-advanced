@@ -4,6 +4,7 @@ import { refresh } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   API_ENDPOINTS,
+  deleteFromApi,
   GENERIC_ERROR,
   HTTP_STATUS,
   readValidationMessage,
@@ -133,4 +134,29 @@ export async function changePassword(
   // The change revoked every earlier token, this browser's included.
   await storeIssuedAccessToken(response);
   return { ...unsaved, isSaved: true };
+}
+
+export type AvatarRemovalState = { formError: string | null };
+
+export async function removeAvatar(): Promise<AvatarRemovalState> {
+  const accessToken = await findAccessToken();
+  if (!accessToken) {
+    redirect(ROUTES.LOGIN);
+  }
+
+  let response: Response;
+  try {
+    response = await deleteFromApi(accessToken, API_ENDPOINTS.PROFILE_AVATAR);
+  } catch {
+    return { formError: UNREACHABLE_ERROR };
+  }
+
+  if (response.status === HTTP_STATUS.UNAUTHORIZED) {
+    redirect(ROUTES.LOGIN);
+  }
+  if (!response.ok) {
+    return { formError: GENERIC_ERROR };
+  }
+  refresh();
+  return { formError: null };
 }

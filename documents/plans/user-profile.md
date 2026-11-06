@@ -330,14 +330,37 @@ The first green attempt kept the field errors hidden: React's post-action form r
 
 ## Phase 5: Avatar on the profile and home pages
 
-**Status:** pending
+**Status:** done
 **Milestone:** [User Profile, Phase 5: Avatar on the profile and home pages](https://github.com/ydunets/claude-advanced/milestone/10)
 **Goal:** a user uploads, previews, replaces and removes their avatar on the profile page and sees it next to their name on the home page; nobody else ever receives the image.
 **Touches:** frontend, documentation
 **Depends on:** Phase 1 (`/profile`, `findProfile`, `UserAvatar`, `apps/web/e2e/profile.spec.ts`), Phase 4 (`PUT /profile/avatar`, `DELETE /profile/avatar`, `GET /profile/avatar`, `ProfileResponse.avatarId`)
 **Read first:** `apps/web/src/app/meetings/[id]/files/route.ts` and `files/[fileId]/route.ts` (streaming Route Handlers), `apps/web/src/app/meetings/[id]/upload-file-form.tsx` (client upload and API error message), `apps/web/src/app/user-avatar.tsx`, `apps/web/src/app/profile/`, `apps/web/src/proxy.ts`, `apps/web/e2e/meeting.spec.ts` (sparse oversized file, upload helpers), `apps/web/e2e/profile.spec.ts`
 **Tests first:** `pnpm --filter web test:e2e profile home`. Expected red: the profile page has no "Avatar" input or remove action, the home page shows only the initials, and `/profile/avatar` renders the Next.js 404 page for everyone, so the "never receives" test is expected green before implementation; it must first assert that the owner receives the image, so a missing route turns it red.
-**Red run:** not yet run.
+**Red run:** 2026-11-06, against the running `pnpm dev` and the dev database. The new test of task 1 ([#43](https://github.com/ydunets/claude-advanced/issues/43)) failed on an assertion:
+
+- `pnpm --filter web test:e2e profile -g "never receives"` (1 failed):
+  - `profile.spec.ts` "another user or a signed-out visitor never receives the avatar image": the owner's upload through `PUT /profile/avatar` expected 200, got 404 (the Next.js 404 for the missing Route Handler), so the test failed before its "never receives" assertions.
+
+2026-11-06, same stack. Every new test of task 2 ([#44](https://github.com/ydunets/claude-advanced/issues/44)) failed on a missing element:
+
+- `pnpm --filter web test:e2e profile -g "previewed|GIF or a JPEG|removing the avatar"` (3 failed):
+  - `profile.spec.ts` "the selected image is previewed before it is saved", "a GIF or a JPEG over 5 MB is refused with the formats and the limit and the old avatar stays" and "removing the avatar brings back the initials on the profile and home pages": no `Avatar` input (`locator.setInputFiles` timeout).
+
+The first green runs of the removal test raced: while the action runs, the button's label and spinner change its accessible name, so the button named "Remove avatar" disappeared before the API had deleted the file. The test now polls until the image is gone. An avatar over 5 MB needs no check in the browser: the Route Handler streams it, and the API's 413 with the limit reaches the form even for a 20 MB file.
+
+2026-11-06, same stack. The new tests of task 3 ([#45](https://github.com/ydunets/claude-advanced/issues/45)) and the removal test of task 2, extended to assert the image itself, failed on a missing element:
+
+- `pnpm --filter web test:e2e profile -g "removing the avatar|4 MB PNG|replacement image"` (3 failed):
+  - `profile.spec.ts` "a 4 MB PNG avatar shows on the profile and home pages, also after a new sign-in", "a replacement image shows in both places and the previous one does not" and "removing the avatar brings back the initials on the profile and home pages": no image from `/profile/avatar?v=` on the profile page (`toBeVisible` found no element).
+
+Visual check and design review, 2026-11-06: `/profile` with the placeholder, the preview, a saved avatar and the refused GIF, and `/` with the avatar, at 375 and 1280 pixels wide, with no console error other than the browser's own log of the expected 415. The `ui-ux-pro-max` review found the error below the input and linked through `aria-describedby`, and a confirmed save. Removal has no confirmation dialog, because a removed avatar can be uploaded again.
+
+2026-11-06, after the review of both phase branches. Plan Decisions treat a 401 as signed out, so the avatar form now sends the browser to `/login` when an upload answers 401. The new test failed on an assertion against the form before the fix:
+
+- `pnpm --filter web test:e2e profile -g "session was revoked"` (1 failed):
+  - `profile.spec.ts` "an avatar upload after the session was revoked sends the browser to the login page": the URL stayed `/profile` instead of `/login`.
+- "a GIF or a JPEG over 5 MB is refused with the formats and the limit and the old avatar stays" now also asserts the limit in the GIF message and that the previous image stays shown after each refusal; it passed once the API's 415 message stated the limit, because the image was never replaced.
 
 **Tasks:**
 

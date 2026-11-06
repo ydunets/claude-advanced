@@ -4,13 +4,15 @@ export const API_ENDPOINTS = {
   CHANGE_PASSWORD: '/auth/password',
   MEETINGS: '/meetings',
   PROFILE: '/profile',
+  PROFILE_AVATAR: '/profile/avatar',
 } as const;
 
 // Mirrors MIN_PASSWORD_LENGTH in apps/api/src/auth/dto/credentials.dto.ts.
 export const MIN_PASSWORD_LENGTH = 8;
 
-// The multipart field the API's FileInterceptor reads.
+// The multipart fields the API's FileInterceptors read.
 export const MEETING_FILE_FIELD = 'file';
+export const AVATAR_FILE_FIELD = 'avatar';
 
 export const HTTP_STATUS = {
   OK: 200,
@@ -62,6 +64,16 @@ export function fetchFromApi(
   endpoint: string,
 ): Promise<Response> {
   return fetch(`${getApiUrl()}${endpoint}`, {
+    headers: { Authorization: buildBearerAuthorization(accessToken) },
+  });
+}
+
+export function deleteFromApi(
+  accessToken: string,
+  endpoint: string,
+): Promise<Response> {
+  return fetch(`${getApiUrl()}${endpoint}`, {
+    method: 'DELETE',
     headers: { Authorization: buildBearerAuthorization(accessToken) },
   });
 }

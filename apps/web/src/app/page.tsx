@@ -59,7 +59,11 @@ async function HomeContent(): Promise<React.JSX.Element> {
               className: 'flex min-w-0 items-center gap-2 text-sm font-medium',
             })}
           >
-            <UserAvatar name={profile.name} size="sm" />
+            <UserAvatar
+              name={profile.name}
+              avatarId={profile.avatarId}
+              size="sm"
+            />
             <span className="break-words">{profile.name}</span>
           </Link>
           <form action={signOut}>
