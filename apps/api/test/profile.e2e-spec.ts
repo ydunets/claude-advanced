@@ -32,20 +32,22 @@ const AVATAR_FIELD = 'avatar';
 const AVATAR_DIRECTORY = 'avatars';
 const AVATAR_SIZE_LIMIT_TEXT = '5 MB';
 const ALLOWED_AVATAR_FORMAT_NAMES = ['JPEG', 'PNG', 'WebP'];
+const AVATAR_CONTENT_BYTES = 16 * 1024;
+const GIF_CONTENT_BYTES = 1024;
 const PNG_AVATAR = {
   name: 'avatar.png',
   mimeType: 'image/png',
-  content: randomBytes(16 * 1024),
+  content: randomBytes(AVATAR_CONTENT_BYTES),
 };
 const JPEG_AVATAR = {
   name: 'portrait.JPEG',
   mimeType: 'image/jpeg',
-  content: randomBytes(16 * 1024),
+  content: randomBytes(AVATAR_CONTENT_BYTES),
 };
 const GIF_AVATAR = {
   name: 'animation.gif',
   mimeType: 'image/gif',
-  content: randomBytes(1024),
+  content: randomBytes(GIF_CONTENT_BYTES),
 };
 const OVERSIZED_UPLOAD_TIMEOUT_MS = 30_000;
 const NO_SNIFF = 'nosniff';
@@ -435,9 +437,10 @@ describe('Profile (e2e)', () => {
 
       await removeAvatar(token).expect(HttpStatus.NO_CONTENT);
 
+      const expectedAvatarCount = storedAvatarCount - 1;
       expect(storageName).not.toBeNull();
       expect(await isStoredAvatar(storageName as string)).toBe(false);
-      expect(await countStoredAvatars()).toBe(storedAvatarCount - 1);
+      expect(await countStoredAvatars()).toBe(expectedAvatarCount);
       expect(await getProfileAvatarId(token)).toBeNull();
       await downloadAvatar(token).expect(HttpStatus.NOT_FOUND);
     });
