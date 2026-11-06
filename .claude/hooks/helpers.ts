@@ -7,6 +7,7 @@ import {
   COMMANDS,
   COMPLETED_REASON,
   CONFIG_PATH,
+  EMPTY_RANGE_COUNT,
   ERROR_CODES,
   GIT_REMOTE,
   INITIAL_ITERATION,
@@ -122,6 +123,16 @@ function getFieldSource(field: string, overrides: CliOverrides): string {
     : CONFIG_PATH;
 }
 
+// The source is the config file or, for an overridden field, its flag. The
+// expectation completes "must", as in "be a positive integer".
+function createFieldError(
+  source: string,
+  field: string,
+  expectation: string,
+): Error {
+  return new Error(`${source}: "${field}" must ${expectation}`);
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -142,24 +153,34 @@ function assertPhases(phases: unknown[]): asserts phases is Phase[] {
   for (const [index, phase] of phases.entries()) {
     const label = `phases[${index}]`;
     if (!isObject(phase)) {
-      throw new Error(`${CONFIG_PATH}: "${label}" must be an object`);
+      throw createFieldError(CONFIG_PATH, label, 'be an object');
     }
     const invalidField = findInvalidField(phase, PHASE_SCHEMA);
     if (invalidField) {
       const [field, rule] = invalidField;
-      throw new Error(
-        `${CONFIG_PATH}: "${label}.${field}" must be ${rule.requirement}`,
+      throw createFieldError(
+        CONFIG_PATH,
+        `${label}.${field}`,
+        `be ${rule.requirement}`,
       );
     }
+    // PHASE_SCHEMA has just confirmed that branch is a non-empty string.
     const branch = phase.branch as string;
+    const { base } = phase;
     if (branches.has(branch)) {
-      throw new Error(
-        `${CONFIG_PATH}: "${label}.branch" must differ from every earlier phase's branch`,
+      throw createFieldError(
+        CONFIG_PATH,
+        `${label}.branch`,
+        "differ from every earlier phase's branch",
       );
     }
-    if (phase.base !== undefined && !branches.has(phase.base as string)) {
-      throw new Error(
-        `${CONFIG_PATH}: "${label}.base" must be absent or an earlier phase's branch`,
+    const isBaseValid =
+      base === undefined || (typeof base === 'string' && branches.has(base));
+    if (!isBaseValid) {
+      throw createFieldError(
+        CONFIG_PATH,
+        `${label}.base`,
+        "be absent or an earlier phase's branch",
       );
     }
     branches.add(branch);
@@ -177,7 +198,7 @@ export function assertConfig(
   if (invalidField) {
     const [field, rule] = invalidField;
     const source = getFieldSource(field, overrides);
-    throw new Error(`${source}: "${field}" must be ${rule.requirement}`);
+    throw createFieldError(source, field, `be ${rule.requirement}`);
   }
   assertPhases(raw.phases as unknown[]);
   const missingPlaceholder = Object.values(PLACEHOLDERS).find(
@@ -185,7 +206,7 @@ export function assertConfig(
   );
   if (missingPlaceholder) {
     const source = getFieldSource('prompt', overrides);
-    throw new Error(`${source}: "prompt" must contain ${missingPlaceholder}`);
+    throw createFieldError(source, 'prompt', `contain ${missingPlaceholder}`);
   }
 }
 
@@ -274,8 +295,10 @@ export function hasLocalBranch(branch: string): boolean {
   return runGit('branch', '--list', branch) !== '';
 }
 
-export function hasCommitsAhead(base: string): boolean {
-  return runGit('rev-list', '--count', `${GIT_REMOTE}/${base}..HEAD`) !== '0';
+// Compares HEAD with the remote copy of the base branch.
+export function isHeadAheadOf(base: string): boolean {
+  const range = `${GIT_REMOTE}/${base}..HEAD`;
+  return runGit('rev-list', '--count', range) !== EMPTY_RANGE_COUNT;
 }
 
 export function isOnBranch(branch: string): boolean {
@@ -290,15 +313,14 @@ export function isWorkingTreeClean(): boolean {
 // Every state counts: a merged or closed pull request also keeps the hook
 // from opening a second one for the branch.
 export function hasPullRequest(branch: string): boolean {
-  return (
-    runJsonCommand<unknown[]>(COMMANDS.GH, [
-      'pr',
-      'list',
-      `--head=${branch}`,
-      '--state=all',
-      '--json=number',
-    ]).length > 0
-  );
+  const pullRequests = runJsonCommand<unknown[]>(COMMANDS.GH, [
+    'pr',
+    'list',
+    `--head=${branch}`,
+    '--state=all',
+    '--json=number',
+  ]);
+  return pullRequests.length > 0;
 }
 
 export function getGitStatePath(fileName: string): string {
@@ -383,11 +405,12 @@ export function buildReviewPrompt(
   { milestone, branch }: Phase,
   pullRequestUrl: string,
 ): string {
-  return fillPlaceholders(reviewPrompt, {
+  const values = {
     [PLACEHOLDERS.MILESTONE]: milestone,
     [PLACEHOLDERS.BRANCH]: branch,
     [PULL_REQUEST_PLACEHOLDER]: pullRequestUrl,
-  });
+  };
+  return fillPlaceholders(reviewPrompt, values);
 }
 
 // Issue titles stay out of the body: a title such as "closes #12" would close

@@ -50,6 +50,8 @@ export const ITERATION_STEP = 1;
 export const GIT_REMOTE = 'origin';
 // A phase without "base" starts from this branch and opens its PR into it.
 export const MAIN_BRANCH = 'main';
+// What `git rev-list --count` prints for an empty range.
+export const EMPTY_RANGE_COUNT = '0';
 
 export const ISSUE_STATE = { OPEN: 'open', CLOSED: 'closed' } as const;
 export type IssueState = (typeof ISSUE_STATE)[keyof typeof ISSUE_STATE];

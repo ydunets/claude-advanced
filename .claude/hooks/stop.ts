@@ -25,9 +25,9 @@ import {
   findCurrentPhase,
   getBaseBranch,
   getGitStatePath,
-  hasCommitsAhead,
   hasLocalBranch,
   hasPullRequest,
+  isHeadAheadOf,
   isIssueCompleted,
   isIssueOpen,
   isOnBranch,
@@ -46,17 +46,18 @@ import {
 } from './helpers.ts';
 import type { Issue, Phase, RalphConfig, ReviewConfig } from './helpers.ts';
 
-// Each pass of the loop ends in exactly one of these outcomes; after a
-// finished phase, the next pass picks the next phase.
-type LoopStep = { kind: 'next' } | { kind: 'stop'; reason: string };
+// Each pass of the loop ends in exactly one of these outcomes; "continue"
+// starts another pass, which takes the next issue or, after a finished phase,
+// the next phase.
+type LoopStep = { kind: 'continue' } | { kind: 'stop'; reason: string };
 
 // A guard returns the reason to stop, or undefined to let the pass go on.
 type Guard = (phase: Phase) => string | undefined;
 
+const DIRTY_TREE_REASON = 'tracked files have uncommitted changes; stopping.';
+
 const CLEAN_TREE_GUARD: Guard = () =>
-  isWorkingTreeClean()
-    ? undefined
-    : 'tracked files have uncommitted changes; stopping.';
+  isWorkingTreeClean() ? undefined : DIRTY_TREE_REASON;
 
 // Each pass re-checks the branch and the tree, because a session may have
 // switched branches or left changes that the next session would commit.
@@ -123,8 +124,8 @@ function runReviewSession(
 
 // Returns the new pull request's URL, or undefined when one already exists.
 // A dependent phase's pull request targets its base, so it shows only its own
-// commits; GitHub retargets it to main once the base branch is merged and
-// deleted.
+// commits. GitHub retargets it to main only when the merged base branch is
+// deleted, and this repository does not delete merged branches on its own.
 function openPullRequest(phase: Phase): string | undefined {
   const { milestone, branch } = phase;
   if (hasPullRequest(branch)) {
@@ -163,6 +164,30 @@ function switchToPhaseBranch(phase: Phase): void {
   runGit('switch', '--no-track', '--create', branch, startPoint);
 }
 
+// Runs once every issue of the phase is closed.
+function finishPhase(
+  config: RalphConfig,
+  phase: Phase,
+  iterationPath: string,
+): LoopStep {
+  // gh refuses a pull request with no commits, such as a milestone that had
+  // no open issues when its branch was created.
+  const base = getBaseBranch(phase);
+  if (!isHeadAheadOf(base)) {
+    return {
+      kind: 'stop',
+      reason: `${phase.branch} has no commits ahead of ${base}; stopping.`,
+    };
+  }
+  const pullRequestUrl = openPullRequest(phase);
+  rmSync(iterationPath, { force: true });
+  // Only a pull request opened in this run is reviewed, so each is reviewed once.
+  if (pullRequestUrl && isReviewEnabled(config)) {
+    runReviewSession(pullRequestUrl, config, phase);
+  }
+  return { kind: 'continue' };
+}
+
 function runLoopPass(
   config: RalphConfig,
   phase: Phase,
@@ -176,22 +201,7 @@ function runLoopPass(
   // The PR comes before the iteration limit, so the run that closes the last
   // issue still opens it.
   if (!nextIssue) {
-    // gh refuses a pull request with no commits, such as a milestone that had
-    // no open issues when its branch was created.
-    const base = getBaseBranch(phase);
-    if (!hasCommitsAhead(base)) {
-      return {
-        kind: 'stop',
-        reason: `${phase.branch} has no commits ahead of ${base}; stopping.`,
-      };
-    }
-    const pullRequestUrl = openPullRequest(phase);
-    rmSync(iterationPath, { force: true });
-    // Only a pull request opened in this run is reviewed, so each is reviewed once.
-    if (pullRequestUrl && isReviewEnabled(config)) {
-      runReviewSession(pullRequestUrl, config, phase);
-    }
-    return { kind: 'next' };
+    return finishPhase(config, phase, iterationPath);
   }
   const iteration = readIteration(iterationPath);
   if (iteration >= config.maxIteration) {
@@ -210,27 +220,26 @@ function runLoopPass(
       reason: `#${nextIssue.number} is still open after its session; stopping.`,
     };
   }
-  return { kind: 'next' };
+  return { kind: 'continue' };
 }
 
 function runLoop(config: RalphConfig): void {
   const iterationPath = getGitStatePath(ITERATION_FILE);
-  let startedBranch: string | undefined;
+  let switchedBranch: string | undefined;
   for (;;) {
     const phase = findCurrentPhase(config.phases, hasPullRequest);
     if (!phase) {
       logRalph('every phase has a pull request.');
       return;
     }
-    if (phase.branch !== startedBranch) {
+    if (phase.branch !== switchedBranch) {
       // Checked before the switch, so no change is carried to another branch.
-      const dirtyReason = findStopReason([CLEAN_TREE_GUARD], phase);
-      if (dirtyReason) {
-        logRalph(dirtyReason);
+      if (!isWorkingTreeClean()) {
+        logRalph(DIRTY_TREE_REASON);
         return;
       }
       switchToPhaseBranch(phase);
-      startedBranch = phase.branch;
+      switchedBranch = phase.branch;
     }
     const step = runLoopPass(config, phase, iterationPath);
     if (step.kind === 'stop') {
