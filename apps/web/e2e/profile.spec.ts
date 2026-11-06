@@ -6,7 +6,7 @@ import {
   type Locator,
   type Page,
 } from '@playwright/test';
-import { MIN_PASSWORD_LENGTH } from '../src/lib/api';
+import { HTTP_STATUS, MIN_PASSWORD_LENGTH } from '../src/lib/api';
 import { ROUTES } from '../src/lib/routes';
 import {
   createTestUser,
@@ -16,6 +16,7 @@ import {
   TEST_PASSWORD,
   type TestUser,
 } from './test-users';
+import { createNoisePng } from './test-images';
 
 const MAX_NAME_LENGTH = 100;
 const NEW_NAME = 'Grace Hopper';
@@ -356,4 +357,56 @@ test('the home page links to a profile with the name, the email and the initials
   await expect(
     profile.getByText(TEST_NAME_INITIALS, { exact: true }),
   ).toBeVisible();
+});
+
+// Kept here, not imported from src/lib, so the tests check the public
+// addresses and the API's field name independently.
+const AVATAR_ROUTE = '/profile/avatar';
+const AVATAR_FIELD = 'avatar';
+const PNG_MIME_TYPE = 'image/png';
+const SMALL_IMAGE_SIDE = 64;
+
+type ImageFile = { name: string; mimeType: string; buffer: Buffer };
+
+function createSmallPng(): ImageFile {
+  return {
+    name: 'avatar.png',
+    mimeType: PNG_MIME_TYPE,
+    buffer: createNoisePng(SMALL_IMAGE_SIDE, SMALL_IMAGE_SIDE),
+  };
+}
+
+test('another user or a signed-out visitor never receives the avatar image', async ({
+  page,
+  browser,
+}) => {
+  await openProfileAsNewUser(page);
+  const avatar = createSmallPng();
+  const upload = await page.request.put(AVATAR_ROUTE, {
+    multipart: { [AVATAR_FIELD]: avatar },
+  });
+  expect(upload.status()).toBe(HTTP_STATUS.OK);
+  const { avatarId } = (await upload.json()) as { avatarId: string };
+  const ownerImage = await page.request.get(AVATAR_ROUTE);
+  expect(ownerImage.status()).toBe(HTTP_STATUS.OK);
+  expect(ownerImage.headers()['content-type']).toBe(PNG_MIME_TYPE);
+  expect((await ownerImage.body()).equals(avatar.buffer)).toBe(true);
+
+  const otherContext = await browser.newContext();
+  const otherPage = await otherContext.newPage();
+  await openProfileAsNewUser(otherPage);
+  const otherImage = await otherPage.request.get(
+    `${AVATAR_ROUTE}?v=${avatarId}`,
+  );
+  expect(otherImage.status()).toBe(HTTP_STATUS.NOT_FOUND);
+  expect((await otherImage.body()).equals(avatar.buffer)).toBe(false);
+  await otherContext.close();
+
+  const signedOutContext = await browser.newContext();
+  const signedOutImage = await signedOutContext.request.get(
+    `${AVATAR_ROUTE}?v=${avatarId}`,
+  );
+  expect(signedOutImage.status()).toBe(HTTP_STATUS.NOT_FOUND);
+  expect((await signedOutImage.body()).equals(avatar.buffer)).toBe(false);
+  await signedOutContext.close();
 });

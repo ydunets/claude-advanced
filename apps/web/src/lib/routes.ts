@@ -3,6 +3,7 @@ export const ROUTES = {
   LOGIN: '/login',
   REGISTER: '/register',
   PROFILE: '/profile',
+  PROFILE_AVATAR: '/profile/avatar',
 } as const;
 
 export function getMeetingRoute(meetingId: string): string {

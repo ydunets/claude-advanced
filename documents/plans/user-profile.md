@@ -324,14 +324,17 @@ The first green attempt kept the field errors hidden: React's post-action form r
 
 ## Phase 5: Avatar on the profile and home pages
 
-**Status:** pending
+**Status:** in progress
 **Milestone:** [User Profile, Phase 5: Avatar on the profile and home pages](https://github.com/ydunets/claude-advanced/milestone/10)
 **Goal:** a user uploads, previews, replaces and removes their avatar on the profile page and sees it next to their name on the home page; nobody else ever receives the image.
 **Touches:** frontend, documentation
 **Depends on:** Phase 1 (`/profile`, `findProfile`, `UserAvatar`, `apps/web/e2e/profile.spec.ts`), Phase 4 (`PUT /profile/avatar`, `DELETE /profile/avatar`, `GET /profile/avatar`, `ProfileResponse.avatarId`)
 **Read first:** `apps/web/src/app/meetings/[id]/files/route.ts` and `files/[fileId]/route.ts` (streaming Route Handlers), `apps/web/src/app/meetings/[id]/upload-file-form.tsx` (client upload and API error message), `apps/web/src/app/user-avatar.tsx`, `apps/web/src/app/profile/`, `apps/web/src/proxy.ts`, `apps/web/e2e/meeting.spec.ts` (sparse oversized file, upload helpers), `apps/web/e2e/profile.spec.ts`
 **Tests first:** `pnpm --filter web test:e2e profile home`. Expected red: the profile page has no "Avatar" input or remove action, the home page shows only the initials, and `/profile/avatar` renders the Next.js 404 page for everyone, so the "never receives" test is expected green before implementation; it must first assert that the owner receives the image, so a missing route turns it red.
-**Red run:** not yet run.
+**Red run:** 2026-11-06, against the running `pnpm dev` and the dev database. The new test of task 1 ([#43](https://github.com/ydunets/claude-advanced/issues/43)) failed on an assertion:
+
+- `pnpm --filter web test:e2e profile -g "never receives"` (1 failed):
+  - `profile.spec.ts` "another user or a signed-out visitor never receives the avatar image": the owner's upload through `PUT /profile/avatar` expected 200, got 404 (the Next.js 404 for the missing Route Handler), so the test failed before its "never receives" assertions.
 
 **Tasks:**
 
