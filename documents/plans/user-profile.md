@@ -261,7 +261,7 @@ The first green attempt kept the field errors hidden: React's post-action form r
 
 ## Phase 4: Avatar upload, removal and owner-only serving (API)
 
-**Status:** in progress
+**Status:** done
 **Milestone:** [User Profile, Phase 4: Avatar upload, removal and owner-only serving (API)](https://github.com/ydunets/claude-advanced/milestone/9)
 **Goal:** the API stores, replaces, removes and serves a user's avatar under the format and size rules, only to its owner, and leaves no orphaned file on disk.
 **Touches:** database, backend, documentation
