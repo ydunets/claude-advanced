@@ -38,14 +38,17 @@ message that states the limit or the allowed formats. The API follows CQRS
 The web app has `/register` and `/login` pages, which call the API from
 Next.js Server Actions (the API has no CORS), keep the token in an httpOnly
 `accessToken` cookie and redirect to `/`. The home page `/` is only for
-signed-in users: it shows their name next to an initials placeholder, linked
-to the profile page `/profile` (name, email and placeholder, a name form and a
-password change form that keeps this browser signed in), the number of meetings, the three
-latest meetings (each linking to its meeting page) and a Sign out button. The
+signed-in users: it shows their name next to their avatar or an initials
+placeholder, linked to the profile page `/profile` (name, email and avatar or
+placeholder, an avatar form that previews, uploads and removes the image, a
+name form and a password change form that keeps this browser signed in), the
+number of meetings, the three latest meetings (each linking to its meeting page) and a Sign out button. The
 meeting page `/meetings/[id]` shows the title, date, participants and files,
 uploads one file at a time and downloads files through Next.js Route Handlers
 that stream to and from the API. Another user's or an unknown meeting shows
-"Meeting not found".
+"Meeting not found". The avatar image is uploaded and loaded through the Route
+Handlers `PUT` and `GET /profile/avatar` in the same way, so only its owner
+ever receives it.
 
 ## Commands
 
