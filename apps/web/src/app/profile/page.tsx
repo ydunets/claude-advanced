@@ -40,7 +40,7 @@ async function ProfileContent(): Promise<React.JSX.Element> {
   return (
     <main className="mt-12 flex flex-col gap-10">
       <div className="flex items-center gap-4">
-        <UserAvatar name={profile.name} size="lg" />
+        <UserAvatar name={profile.name} avatarId={profile.avatarId} size="lg" />
         <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-2xl font-semibold break-words">{profile.name}</h1>
           <p className="break-all text-muted">{profile.email}</p>

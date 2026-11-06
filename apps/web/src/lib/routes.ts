@@ -6,6 +6,12 @@ export const ROUTES = {
   PROFILE_AVATAR: '/profile/avatar',
 } as const;
 
+// The id changes on every upload, so a replaced image never comes from the
+// browser cache.
+export function getAvatarImageRoute(avatarId: string): string {
+  return `${ROUTES.PROFILE_AVATAR}?v=${encodeURIComponent(avatarId)}`;
+}
+
 export function getMeetingRoute(meetingId: string): string {
   return `/meetings/${meetingId}`;
 }

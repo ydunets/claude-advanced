@@ -376,6 +376,15 @@ const GIF_AVATAR = {
 };
 const OVERSIZED_AVATAR_NAME = 'oversized.jpg';
 const PREVIEW_NAME = 'Preview of the selected image';
+const BYTES_PER_MEGABYTE = 1024 * 1024;
+const LARGE_AVATAR_MEGABYTES = 4;
+const LARGE_AVATAR_MIN_BYTES = LARGE_AVATAR_MEGABYTES * BYTES_PER_MEGABYTE;
+// About 4.02 MB: 1170 rows of 1200 RGB pixels plus a filter byte each.
+const LARGE_PNG_WIDTH = 1200;
+const LARGE_PNG_HEIGHT = 1170;
+const JPEG_MIME_TYPE = 'image/jpeg';
+const WEBP_MIME_TYPE = 'image/webp';
+const CANVAS_FILL = '#2f6fdf';
 
 type ImageFile = { name: string; mimeType: string; buffer: Buffer };
 
@@ -421,6 +430,54 @@ test('another user or a signed-out visitor never receives the avatar image', asy
   expect((await signedOutImage.body()).equals(avatar.buffer)).toBe(false);
   await signedOutContext.close();
 });
+
+// Drawn by the browser, so the replacement is an image Chromium can decode.
+async function createCanvasImage(
+  page: Page,
+  name: string,
+  mimeType: string,
+): Promise<ImageFile> {
+  const { type, bytes } = await page.evaluate(
+    async ({ imageType, side, fill }) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = side;
+      canvas.height = side;
+      const context = canvas.getContext('2d') as CanvasRenderingContext2D;
+      context.fillStyle = fill;
+      context.fillRect(0, 0, side, side);
+      const blob = (await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, imageType),
+      )) as Blob;
+      return {
+        type: blob.type,
+        bytes: Array.from(new Uint8Array(await blob.arrayBuffer())),
+      };
+    },
+    { imageType: mimeType, side: SMALL_IMAGE_SIDE, fill: CANVAS_FILL },
+  );
+  expect(type).toBe(mimeType);
+  return { name, mimeType, buffer: Buffer.from(bytes) };
+}
+
+function getAvatarImage(scope: Locator): Locator {
+  return scope.locator(`img[src^="${AVATAR_ROUTE}?v="]`);
+}
+
+function getHomeProfileLink(page: Page): Locator {
+  return page.getByRole('link', { name: TEST_NAME });
+}
+
+// Resolves the image address once the browser has decoded the image.
+async function getShownAvatarSource(scope: Locator): Promise<string> {
+  const image = getAvatarImage(scope);
+  await expect(image).toBeVisible();
+  await expect
+    .poll(() =>
+      image.evaluate((element: HTMLImageElement) => element.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  return (await image.getAttribute('src')) as string;
+}
 
 function getAvatarInput(page: Page): Locator {
   return page.getByRole('main').getByLabel('Avatar', { exact: true });
@@ -487,6 +544,7 @@ test('removing the avatar brings back the initials on the profile and home pages
 }) => {
   await openProfileAsNewUser(page);
   await saveAvatarAndWait(page, createSmallPng());
+  await getShownAvatarSource(page.getByRole('main'));
 
   await page.getByRole('button', { name: 'Remove avatar' }).click();
 
@@ -498,8 +556,67 @@ test('removing the avatar brings back the initials on the profile and home pages
   await expect(
     page.getByRole('main').getByText(TEST_NAME_INITIALS, { exact: true }),
   ).toBeVisible();
+  await expect(getAvatarImage(page.getByRole('main'))).toHaveCount(0);
   await page.goto(ROUTES.HOME);
   await expect(
-    page.getByRole('link', { name: TEST_NAME }).getByText(TEST_NAME_INITIALS),
+    getHomeProfileLink(page).getByText(TEST_NAME_INITIALS),
   ).toBeVisible();
+  await expect(getAvatarImage(getHomeProfileLink(page))).toHaveCount(0);
+});
+
+test('a 4 MB PNG avatar shows on the profile and home pages, also after a new sign-in', async ({
+  page,
+}) => {
+  const user = await openProfileAsNewUser(page);
+  const avatar = {
+    name: 'large-avatar.png',
+    mimeType: PNG_MIME_TYPE,
+    buffer: createNoisePng(LARGE_PNG_WIDTH, LARGE_PNG_HEIGHT),
+  };
+  expect(avatar.buffer.length).toBeGreaterThan(LARGE_AVATAR_MIN_BYTES);
+  expect(avatar.buffer.length).toBeLessThan(MAX_AVATAR_SIZE_BYTES);
+
+  await saveAvatarAndWait(page, avatar);
+
+  await getShownAvatarSource(page.getByRole('main'));
+  await page.goto(ROUTES.HOME);
+  await getShownAvatarSource(getHomeProfileLink(page));
+
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(ROUTES.LOGIN);
+  await logIn(page, user.email, TEST_PASSWORD);
+  await expect(page).toHaveURL(ROUTES.HOME);
+
+  await getShownAvatarSource(getHomeProfileLink(page));
+  await page.goto(ROUTES.PROFILE);
+  await getShownAvatarSource(page.getByRole('main'));
+  expect((await findStoredAvatar(page))?.equals(avatar.buffer)).toBe(true);
+});
+
+test('a replacement image shows in both places and the previous one does not', async ({
+  page,
+}) => {
+  await openProfileAsNewUser(page);
+  await saveAvatarAndWait(page, createSmallPng());
+  let previousSource = await getShownAvatarSource(page.getByRole('main'));
+  const replacements = [
+    await createCanvasImage(page, 'replacement.jpg', JPEG_MIME_TYPE),
+    await createCanvasImage(page, 'replacement.webp', WEBP_MIME_TYPE),
+  ];
+
+  for (const replacement of replacements) {
+    await saveAvatarAndWait(page, replacement);
+
+    const source = await getShownAvatarSource(page.getByRole('main'));
+    expect(source).not.toBe(previousSource);
+    await expect(page.locator(`img[src="${previousSource}"]`)).toHaveCount(0);
+    expect((await findStoredAvatar(page))?.equals(replacement.buffer)).toBe(
+      true,
+    );
+    await page.goto(ROUTES.HOME);
+    expect(await getShownAvatarSource(getHomeProfileLink(page))).toBe(source);
+    await expect(page.locator(`img[src="${previousSource}"]`)).toHaveCount(0);
+    await page.goto(ROUTES.PROFILE);
+    previousSource = source;
+  }
 });
